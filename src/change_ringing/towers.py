@@ -9,11 +9,13 @@ import requests
 DOVE_FILE = os.path.expanduser("~/Downloads/dove.csv")
 DOVE_URL = "https://dove.cccbr.org.uk/towers.csv"
 
+# Make column names more suitable for use as object attribute names;
+# whether or not found in this table, they are downcased for use.
 COLUMN_RENAMES = {
     "TowerID": "Tower_ID",
     "RingID": "Ring_ID",
-    "RingType": "Ring_Type",
-    "Place2": "Place2",
+    "RingType": "Full_Circle",
+    "Place2": "Sub_Place2",
     "PlaceCL": "PlaceCL",
     "Dedicn": "Dedication",
     "TowerStatus": "Tower_Status",
@@ -51,12 +53,18 @@ COLUMN_RENAMES = {
 def convert_date(date_string):
     """Try to convert a string to a datetime.date, using the formats in the Dove file."""
     try:
-        return datetime.date.strptime(date_string, "%d %b %Y")
+        return datetime.datetime.strptime(date_string, "%d %b %Y").date()
     except ValueError:
         try:
             return datetime.date(int(date_string), 1, 1)
         except ValueError:
             return date_string
+
+def convert_if_possible(raw_value, converter):
+    try:
+        return converter(raw_value)
+    except ValueError:
+        return raw_value
 
 # Conversion functions to apply, going by the raw column names
 COLUMN_CONVERTERS = {
@@ -83,24 +91,48 @@ class Tower:
 
     """The representation of a tower as read from the Dove CSV file."""
 
-    def __init__(self, dove_row):
-        """Fill in a Tower object from a row of the Dove CSV file."""
+    def __init__(self, dove_row, dove_collection):
+        """Fill in a Tower object from a row of the Dove CSV file.
+        It is also given a back-reference to the collection of which it is part."""
         for key, value in dove_row.items():
             setattr(self,
                     COLUMN_RENAMES.get(key, key).lower(),
-                    COLUMN_CONVERTERS.get(key, lambda a: a)(value))
+                    convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
+        self.collection = dove_collection
 
     def __str__(self):
-        return "<%d-bell tower %s: %s>" % (self.bells, self.tower_id, self.Place)
+        return "<%d-bell tower %s>" % (self.bells, self.place)
 
-def tower_names(tower):
-    """Return various names by which a tower may be known."""
-    return set([tower['PlaceCL'] or tower['Place'],
-                tower['Place'],
-                tower['AltName'] or tower['Place'],
-                "%s, %s" % (tower['Place'], tower['Dedicn']),
-                "%s (%s)" % (tower['Place'], tower['County']),
-                ])
+    def __repr__(self):
+        return "<%d-bell tower %s: %s>" % (self.bells, self.tower_id, self.place)
+
+    def names(self):
+        """Return various names by which a tower may be known."""
+        return set([self.placecl or self.place,
+                    self.place,
+                    self.alternative_name or self.place,
+                    "%s, %s" % (self.place, self.dedication),
+                    "%s (%s)" % (self.place, self.county),
+                    ])
+
+class TowerCollection:
+
+    """A collection of towers, by name and by ID."""
+
+    def __init__(self):
+        self.by_name = collections.defaultdict(list)
+        self.by_id = dict()
+
+    def add_by_names(self, tower):
+        for name in tower.names():
+            if (tower.full_circle
+                and tower.bells != 1):
+                self.by_name[name].append(tower)
+        self.by_name[tower.tower_id] = tower
+        self.by_id[tower.tower_id] = tower
+
+    def __getitem__(self, key):
+        return self.by_name[key]
 
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
@@ -128,12 +160,15 @@ def read_dove(force_fetch=False):
     The numerical TowerID from the Dove data is also used as a key.
     """
     download_dove(force_fetch)
-    dove = collections.defaultdict(list)
+    dove = TowerCollection()
     with open(DOVE_FILE) as dovestream:
         for tower in csv.DictReader(dovestream):
-            for name in tower_names(tower):
-                if (tower['RingType'] == 'Full-circle ring'
-                    and tower['Bells'] != "1"):
-                    dove[name].append(tower)
-            dove[int(tower['TowerID'])] = tower
+            dove.add_by_names(Tower(tower, dove))
     return dove
+
+def main_for_testing():
+    for k, v in read_dove().by_name.items():
+        print(k, v)
+
+if __name__ == "__main__":
+    main_for_testing()
