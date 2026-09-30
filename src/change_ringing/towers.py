@@ -3,6 +3,7 @@
 import collections
 import csv
 import datetime
+import math
 import os
 import requests
 
@@ -98,6 +99,8 @@ class Tower:
             setattr(self,
                     COLUMN_RENAMES.get(key, key).lower(),
                     convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
+        self.longlat = (self.longitude, self.latitude)
+        self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
         self.collection = dove_collection
 
     def __str__(self):
@@ -114,6 +117,15 @@ class Tower:
                     "%s, %s" % (self.place, self.dedication),
                     "%s (%s)" % (self.place, self.county),
                     ])
+
+    def neighbours(self):
+        """Return the rest of the towers in order of closeness to this one."""
+        return sorted(self.collection.by_id.values(),
+                      key=lambda other: math.dist(self.longlat, other.longlat))[1:]
+
+    def crow(self, other):
+        """Return the distance to another tower as the crow flies."""
+        # TODO: convert coordinates to metres from datum, calculate distance, convert to miles
 
 class TowerCollection:
 
@@ -167,8 +179,13 @@ def read_dove(force_fetch=False):
     return dove
 
 def main_for_testing():
-    for k, v in read_dove().by_name.items():
-        print(k, v)
+    dove = read_dove()
+    # for k, v in dove.by_name.items():
+    #     print(k, v)
+    combe_florey = dove["Combe Florey"][0]
+    print(combe_florey)
+    for tower in combe_florey.neighbours()[:12]:
+        print(tower)
 
 if __name__ == "__main__":
     main_for_testing()
