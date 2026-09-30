@@ -16,8 +16,9 @@ def tower_names(tower):
                 "%s (%s)" % (tower['Place'], tower['County']),
                 ])
 
-def download_dove():
-    if not os.path.exists(DOVE_FILE):
+def download_dove(force_fetch=False):
+    """Fetch the Dove data as a CSV file if it is not present, or if forced."""
+    if force or not os.path.exists(DOVE_FILE):
         print("Downloading tower data from Dove's Guide")
         download = requests.get(DOVE_URL)
         if download.status_code == 200:
@@ -30,15 +31,17 @@ def download_dove():
         else:
             print("Failed to fetch Dove data")
 
-def read_dove():
+def read_dove(force_fetch=False):
     """Read the Dove data as a dictionary of lists.
 
     Each tower appears under multiple names, as returned by the function `tower_names`.
 
     Each entry is a list of towers with that name (so you can tell
     whether you need more information for disambiguation).
+
+    The numerical TowerID from the Dove data is also used as a key.
     """
-    download_dove()
+    download_dove(force_fetch)
     dove = collections.defaultdict(list)
     with open(DOVE_FILE) as dovestream:
         for tower in csv.DictReader(dovestream):
@@ -46,4 +49,5 @@ def read_dove():
                 if (tower['RingType'] == 'Full-circle ring'
                     and tower['Bells'] != "1"):
                     dove[name].append(tower)
+            dove[int(tower['TowerID'])] = tower
     return dove
