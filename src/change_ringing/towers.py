@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import collections
+import copy
 import csv
 import datetime
 import math
@@ -130,15 +131,21 @@ class Tower:
                     "%s (%s)" % (self.place, self.county),
                     ])
 
-    def neighbours(self):
-        """Return the rest of the towers in order of closeness to this one."""
+    def neighbours(self, n=None):
+        """Return the rest of the towers in order of closeness to this one.
+        If N is given, return only the nearest N neighbours."""
         return sorted(self.collection.by_id.values(),
-                      key=lambda other: math.dist(self.longlat, other.longlat))[1:]
+                      key=lambda other: math.dist(self.xy, other.xy))[1:(n+1) or 1000000]
 
     def crow(self, other, miles=True):
         """Return the distance to another tower as the crow flies.
         The distance is miles by default, metres on request."""
         return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
+
+    def copy_into(self, collection):
+        new = copy.copy(self)
+        new.collection = collection
+        return new
 
 class TowerCollection:
 
@@ -149,17 +156,34 @@ class TowerCollection:
                  ):
         self.by_name = collections.defaultdict(list)
         self.by_id = dict()
-        self.transformer = pyproj.Transformer.from_crs("EPSG:4326", projection)
+        self.projection = projection
+        self.transformer = pyproj.Transformer.from_crs("EPSG:4326", self.projection)
 
     def add_tower(self, tower):
         if (tower.full_circle and tower.bells > 1):
             for name in tower.names():
                 self.by_name[name].append(tower)
-            self.by_name[tower.tower_id] = tower
+            self.by_name[tower.tower_id].append(tower)
             self.by_id[tower.tower_id] = tower
 
     def __getitem__(self, key):
         return self.by_name[key]
+
+    def filter_towers(self, predicate):
+        """Return a collection filtered by a predicate."""
+        result = TowerCollection(projection=self.projection)
+        for k, v in self.by_name.items():
+            for t in v:
+                if predicate(t):
+                    result.by_name[k].append(t.copy_into(result))
+        for k, v in self.by_id.items():
+            if predicate(v):
+                result.by_id[k] = v.copy_into(result)
+        return result
+
+    def bells_range(self, minimum=None, maximum=None):
+        """Return a collection filtered by the number of bells."""
+        return self.filter_towers(lambda tower: tower.bells in set(range(minimum or 1, (maximum or 19) + 1)))
 
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
@@ -194,13 +218,13 @@ def read_dove(force_fetch=False):
     return dove
 
 def main_for_testing():
-    dove = read_dove()
+    dove = read_dove().bells_range(6,8)
     # for k, v in dove.by_name.items():
     #     print(k, v)
     combe_florey = dove["Combe Florey"][0]
     print(combe_florey)
-    for tower in combe_florey.neighbours()[:12]:
-        print(combe_florey.crow(tower), tower)
+    for i, tower in enumerate(combe_florey.neighbours(12)):
+        print(i+1, combe_florey.crow(tower), tower)
 
 if __name__ == "__main__":
     main_for_testing()
