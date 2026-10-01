@@ -32,7 +32,7 @@ COLUMN_RENAMES = {
     "Lat": "Latitude",
     "Long": "Longitude",
     "UR": "UnRingable",
-    "Wt": "Weight",
+    "Wt": "Pounds",
     "App": "App",
     "Hz": "Hertz",
     "Details": "Details",
@@ -106,6 +106,12 @@ class Tower:
         self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
         self.xy = self.collection.transformer.transform(self.longitude, self.latitude)
         self.x, self.y = self.xy
+        if isinstance(self.pounds, float):
+            self.kilograms = self.pounds / 2.2046226218488
+            self.weight = "%d-%d-%d" % (self.pounds // 112, (self.pounds // 28) % 4, self.pounds % 28)
+        else:
+            self.kilograms = ""
+            self.weight = ""
         return self
 
     def from_dove(self, dove_row):
@@ -115,6 +121,10 @@ class Tower:
                     COLUMN_RENAMES.get(key, key).lower(),
                     convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
         return self.normalise()
+
+    def to_dict(self, fields):
+        """Return a dictionary of the specified fields of this tower."""
+        return {field: getattr(self, field) for field in fields}
 
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
@@ -169,6 +179,18 @@ class TowerCollection:
     def __getitem__(self, key):
         return self.by_name[key]
 
+    def to_list(self, fields):
+        """Return a list of dicts describing this collection."""
+        return [tower.to_dict(fields) for tower in self.by_id.values()]
+
+    def dump_csv(self, filename, fields):
+        """Dump this collection to a CSV file."""
+        with open(filename, 'w') as outstream:
+            writer = csv.DictWriter(outstream, fields)
+            writer.writeheader()
+            for row in self.to_list(fields):
+                writer.writerow(row)
+
     def filter_towers(self, predicate):
         """Return a collection filtered by a predicate."""
         result = TowerCollection(projection=self.projection)
@@ -187,7 +209,7 @@ class TowerCollection:
 
     def ringable(self):
         """Return a collection of the ringable towers in this collection."""
-        return self.filter_towers(lambda tower: tower.ringable)
+        return self.filter_towers(lambda tower: not tower.unringable)
 
     def with_toilet(self):
         """Return a collection of the towers with toilets in this collection."""
@@ -230,13 +252,15 @@ def read_dove(force_fetch=False):
     return dove
 
 def main_for_testing():
-    dove = read_dove().bells_range(6,8)
+    dove = read_dove().bells_range(6,8).ringable()
     # for k, v in dove.by_name.items():
     #     print(k, v)
     combe_florey = dove["Combe Florey"][0]
     print(combe_florey)
-    for i, tower in enumerate(combe_florey.neighbours(12)):
+    nearby = combe_florey.neighbours(12)
+    for i, tower in enumerate(nearby):
         print(i+1, combe_florey.crow(tower), tower)
+    dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight'])
 
 if __name__ == "__main__":
     main_for_testing()
