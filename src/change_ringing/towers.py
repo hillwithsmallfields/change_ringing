@@ -7,6 +7,8 @@ import math
 import os
 import requests
 
+import pyproj
+
 DOVE_FILE = os.path.expanduser("~/Downloads/dove.csv")
 DOVE_URL = "https://dove.cccbr.org.uk/towers.csv"
 
@@ -101,6 +103,8 @@ class Tower:
         """Complete the setup of a Tower object."""
         self.longlat = (self.longitude, self.latitude)
         self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
+        self.xy = self.collection.transformer.transform(self.longitude, self.latitude)
+        self.x, self.y = self.xy
         return self
 
     def from_dove(self, dove_row):
@@ -131,17 +135,21 @@ class Tower:
         return sorted(self.collection.by_id.values(),
                       key=lambda other: math.dist(self.longlat, other.longlat))[1:]
 
-    def crow(self, other):
-        """Return the distance to another tower as the crow flies."""
-        # TODO: convert coordinates to metres from datum, calculate distance, convert to miles
+    def crow(self, other, miles=True):
+        """Return the distance to another tower as the crow flies.
+        The distance is miles by default, metres on request."""
+        return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
 
 class TowerCollection:
 
     """A collection of towers, by name and by ID."""
 
-    def __init__(self):
+    def __init__(self,
+                 projection="EPSG:3857",
+                 ):
         self.by_name = collections.defaultdict(list)
         self.by_id = dict()
+        self.transformer = pyproj.Transformer.from_crs("EPSG:4326", projection)
 
     def add_tower(self, tower):
         if (tower.full_circle and tower.bells > 1):
@@ -192,7 +200,7 @@ def main_for_testing():
     combe_florey = dove["Combe Florey"][0]
     print(combe_florey)
     for tower in combe_florey.neighbours()[:12]:
-        print(tower)
+        print(combe_florey.crow(tower), tower)
 
 if __name__ == "__main__":
     main_for_testing()
