@@ -92,16 +92,24 @@ class Tower:
 
     """The representation of a tower as read from the Dove CSV file."""
 
-    def __init__(self, dove_row, dove_collection):
-        """Fill in a Tower object from a row of the Dove CSV file.
-        It is also given a back-reference to the collection of which it is part."""
+    def __init__(self, dove_collection):
+        """Set up a Tower object.
+        It is given a back-reference to the collection of which it is part."""
+        self.collection = dove_collection
+
+    def normalise(self):
+        """Complete the setup of a Tower object."""
+        self.longlat = (self.longitude, self.latitude)
+        self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
+        return self
+
+    def from_dove(self, dove_row):
+        """Fill in a Tower object from a row of the Dove CSV file."""
         for key, value in dove_row.items():
             setattr(self,
                     COLUMN_RENAMES.get(key, key).lower(),
                     convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
-        self.longlat = (self.longitude, self.latitude)
-        self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
-        self.collection = dove_collection
+        return self.normalise()
 
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
@@ -135,13 +143,12 @@ class TowerCollection:
         self.by_name = collections.defaultdict(list)
         self.by_id = dict()
 
-    def add_by_names(self, tower):
-        for name in tower.names():
-            if (tower.full_circle
-                and tower.bells != 1):
+    def add_tower(self, tower):
+        if (tower.full_circle and tower.bells > 1):
+            for name in tower.names():
                 self.by_name[name].append(tower)
-        self.by_name[tower.tower_id] = tower
-        self.by_id[tower.tower_id] = tower
+            self.by_name[tower.tower_id] = tower
+            self.by_id[tower.tower_id] = tower
 
     def __getitem__(self, key):
         return self.by_name[key]
@@ -162,7 +169,7 @@ def download_dove(force_fetch=False):
             print("Failed to fetch Dove data")
 
 def read_dove(force_fetch=False):
-    """Read the Dove data as a dictionary of lists.
+    """Read the Dove data into a TowerCollection.
 
     Each tower appears under multiple names, as returned by the function `tower_names`.
 
@@ -175,7 +182,7 @@ def read_dove(force_fetch=False):
     dove = TowerCollection()
     with open(DOVE_FILE) as dovestream:
         for tower in csv.DictReader(dovestream):
-            dove.add_by_names(Tower(tower, dove))
+            dove.add_tower(Tower(dove).from_dove(tower))
     return dove
 
 def main_for_testing():
