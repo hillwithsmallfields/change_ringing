@@ -100,6 +100,7 @@ class Tower:
         """Set up a Tower object.
         It is given a back-reference to the collection of which it is part."""
         self.collection = dove_collection
+        self._neighbours_cache = None
         self.routes_from = dict()
 
     def normalise(self):
@@ -149,8 +150,10 @@ class Tower:
     def neighbours(self, n=None):
         """Return the rest of the towers in order of closeness to this one.
         If N is given, return only the nearest N neighbours."""
-        return sorted(self.collection.by_id.values(),
-                      key=lambda other: math.dist(self.xy, other.xy))[1:(n+1) or 1000000]
+        if self._neighbours_cache is None:
+            self._neighbours_cache = sorted(self.collection.by_id.values(),
+                                            key=lambda other: math.dist(self.xy, other.xy))
+        return self._neighbours_cache[1:(n+1) or 1000000]
 
     def within(self, distance, miles=True):
         """Return a collection of towers within a given distance of this one."""
