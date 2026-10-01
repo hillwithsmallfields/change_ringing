@@ -185,6 +185,18 @@ class TowerCollection:
         """Return a collection filtered by the number of bells."""
         return self.filter_towers(lambda tower: tower.bells in set(range(minimum or 1, (maximum or 19) + 1)))
 
+    def ringable(self):
+        """Return a collection of the ringable towers in this collection."""
+        return self.filter_towers(lambda tower: tower.ringable)
+
+    def with_toilet(self):
+        """Return a collection of the towers with toilets in this collection."""
+        return self.filter_towers(lambda tower: tower.toilet)
+
+    def ground_floor(self):
+        """Return a collection of the ground-floor towers in this collection."""
+        return self.filter_towers(lambda tower: tower.ground_floor)
+
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
     if force_fetch or not os.path.exists(DOVE_FILE):
