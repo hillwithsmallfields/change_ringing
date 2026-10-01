@@ -226,10 +226,10 @@ class TowerCollection:
         result = TowerCollection(projection=self.projection)
         for k, v in self.by_name.items():
             for t in v:
-                if predicate(t):
+                if t.tower_id not in result.by_id and predicate(t):
                     result.by_name[k].append(t.copy_into(result))
         for k, v in self.by_id.items():
-            if predicate(v):
+            if v.tower_id not in result.by_id and predicate(v):
                 result.by_id[k] = v.copy_into(result)
         return result
 
@@ -260,6 +260,12 @@ class TowerCollection:
     def affiliated_to(self, affiliation):
         """Return a collection of the towers in this collection with the given affiliation."""
         return self.filter_towers(lambda tower: affiliation in tower.affiliations)
+
+    def select(self, selectors):
+        """Return a selected collection of towers.
+        Selectors should be an iterable of tower names or IDs."""
+        return self.filter_towers(lambda tower: any(selector in tower.names() or selector == tower.tower_id
+                                                    for selector in selectors))
 
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
@@ -308,7 +314,10 @@ def main_for_testing():
         print(i+1, tower, combe_florey.crow(tower))
     dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.affiliated_to("Ely Diocesan Association").dump_csv("/tmp/eda.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
-    dove.in_diocese("Ely").dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    ely = dove.in_diocese("Ely")
+    ely.dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    selected = ely.select(["Cambridge", "Histon", "Cherry Hinton", "Fulbourn", "Trumpington"])
+    selected.dump_csv("/tmp/selected.csv", ['place', 'dedication'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     print(combe_florey.route_from(dove["West Bagborough"][0]))
 
