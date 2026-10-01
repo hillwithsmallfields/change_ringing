@@ -151,6 +151,16 @@ class Tower:
         return sorted(self.collection.by_id.values(),
                       key=lambda other: math.dist(self.xy, other.xy))[1:(n+1) or 1000000]
 
+    def within(self, distance, miles=True):
+        """Return a collection of towers within a given distance of this one."""
+        if miles:
+            distance *= 1609.344
+        result = TowerCollection(projection=self.collection.projection)
+        for tower in self.collection.by_id.values():
+            if math.dist(self.xy, tower.xy) <= distance:
+                result.add_tower(copy.copy(tower))
+        return result
+
     def crow(self, other, miles=True):
         """Return the distance to another tower as the crow flies.
         The distance is miles by default, metres on request."""
@@ -179,6 +189,7 @@ class TowerCollection:
                 self.by_name[name].append(tower)
             self.by_name[tower.tower_id].append(tower)
             self.by_id[tower.tower_id] = tower
+            tower.collection = self
 
     def __getitem__(self, key):
         return self.by_name[key]
@@ -278,6 +289,9 @@ def main_for_testing():
     nearby = combe_florey.neighbours(12)
     for i, tower in enumerate(nearby):
         print(i+1, combe_florey.crow(tower), tower)
+    in_twelve_miles = combe_florey.within(12)
+    for i, tower in enumerate(in_twelve_miles.by_id.values()):
+        print(i+1, tower, combe_florey.crow(tower))
     dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.affiliated_to("Ely Diocesan Association").dump_csv("/tmp/eda.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.in_diocese("Ely").dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
