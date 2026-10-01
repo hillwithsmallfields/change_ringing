@@ -100,6 +100,7 @@ class Tower:
         """Set up a Tower object.
         It is given a back-reference to the collection of which it is part."""
         self.collection = dove_collection
+        self.routes_from = dict()
 
     def normalise(self):
         """Complete the setup of a Tower object."""
@@ -165,6 +166,15 @@ class Tower:
         """Return the distance to another tower as the crow flies.
         The distance is miles by default, metres on request."""
         return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
+
+    def route_from(self, other, mode='driving'):
+        """Return the route from another tower, as computed by OSRM."""
+        other_id = "%s from %d" % (mode, other.tower_id)
+        if other_id not in self.routes_from:
+            self.routes_from[other_id] = requests.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
+                                                       % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
+                                                      params={'geometries': 'geojson'}).json()
+        return self.routes_from[other_id]
 
     def copy_into(self, collection):
         new = copy.copy(self)
@@ -290,12 +300,14 @@ def main_for_testing():
     for i, tower in enumerate(nearby):
         print(i+1, combe_florey.crow(tower), tower)
     in_twelve_miles = combe_florey.within(12)
+    in_twelve_miles.dump_csv("/tmp/12miles.csv", ['place', 'dedication', 'longitude', 'latitude'])
     for i, tower in enumerate(in_twelve_miles.by_id.values()):
         print(i+1, tower, combe_florey.crow(tower))
     dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.affiliated_to("Ely Diocesan Association").dump_csv("/tmp/eda.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.in_diocese("Ely").dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    print(combe_florey.route_from(dove["West Bagborough"][0]))
 
 if __name__ == "__main__":
     main_for_testing()
