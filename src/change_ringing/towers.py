@@ -84,6 +84,7 @@ COLUMN_CONVERTERS = {
     'GF': lambda gf: gf == 'GF',
     'Toilet': lambda toilet: toilet == 'T',
     'Simulator': lambda simulator: simulator == 'T',
+    'Affiliations': lambda affiliations: affiliations.split(';'),
     'OvhaulYr': convert_date,
     'TuneYr': convert_date,
     'TowerBase': int,
@@ -224,6 +225,18 @@ class TowerCollection:
         """Return a collection of the ground-floor towers in this collection."""
         return self.filter_towers(lambda tower: tower.ground_floor)
 
+    def in_county(self, county):
+        """Return a collection of the towers in this collection in the given county."""
+        return self.filter_towers(lambda tower: tower.county == county)
+
+    def in_diocese(self, diocese):
+        """Return a collection of the towers in this collection in the given diocese."""
+        return self.filter_towers(lambda tower: tower.diocese == diocese)
+
+    def affiliated_to(self, affiliation):
+        """Return a collection of the towers in this collection with the given affiliation."""
+        return self.filter_towers(lambda tower: affiliation in tower.affiliations)
+
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
     if force_fetch or not os.path.exists(DOVE_FILE):
@@ -266,6 +279,9 @@ def main_for_testing():
     for i, tower in enumerate(nearby):
         print(i+1, combe_florey.crow(tower), tower)
     dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    dove.affiliated_to("Ely Diocesan Association").dump_csv("/tmp/eda.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    dove.in_diocese("Ely").dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
+    dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
 if __name__ == "__main__":
     main_for_testing()
