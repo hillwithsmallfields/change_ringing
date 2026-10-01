@@ -124,7 +124,10 @@ class Tower:
 
     def to_dict(self, fields):
         """Return a dictionary of the specified fields of this tower."""
-        return {field: getattr(self, field) for field in fields}
+        return {field: (getattr(self, field)
+                        if hasattr(self, field)
+                        else "")
+                for field in fields}
 
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
@@ -184,7 +187,9 @@ class TowerCollection:
         return [tower.to_dict(fields) for tower in self.by_id.values()]
 
     def dump_csv(self, filename, fields):
-        """Dump this collection to a CSV file."""
+        """Dump this collection to a CSV file.
+        Only the specified attributes are written.
+        Unknown columns are written as blanks."""
         with open(filename, 'w') as outstream:
             writer = csv.DictWriter(outstream, fields)
             writer.writeheader()
@@ -260,7 +265,7 @@ def main_for_testing():
     nearby = combe_florey.neighbours(12)
     for i, tower in enumerate(nearby):
         print(i+1, combe_florey.crow(tower), tower)
-    dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight'])
+    dove.dump_csv("/tmp/some_cols.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
 if __name__ == "__main__":
     main_for_testing()
