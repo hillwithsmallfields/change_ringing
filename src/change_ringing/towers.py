@@ -101,7 +101,7 @@ class Tower:
         It is given a back-reference to the collection of which it is part."""
         self.collection = dove_collection
         self._neighbours_cache = None
-        self.routes_from = dict()
+        self._routes_from = dict()
 
     def normalise(self):
         """Complete the setup of a Tower object."""
@@ -173,11 +173,11 @@ class Tower:
     def route_from(self, other, mode='driving'):
         """Return the route from another tower, as computed by OSRM."""
         other_id = "%s from %d" % (mode, other.tower_id)
-        if other_id not in self.routes_from:
-            self.routes_from[other_id] = requests.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
-                                                       % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
-                                                      params={'geometries': 'geojson'}).json()
-        return self.routes_from[other_id]
+        if other_id not in self._routes_from:
+            self._routes_from[other_id] = requests.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
+                                                        % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
+                                                       params={'geometries': 'geojson'}).json()
+        return self._routes_from[other_id]
 
     def copy_into(self, collection):
         new = copy.copy(self)
