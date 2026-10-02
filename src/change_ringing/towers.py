@@ -107,6 +107,9 @@ class Tower:
         """Complete the setup of a Tower object."""
         self.longlat = (self.longitude, self.latitude)
         self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
+        if not isinstance(self.longitude, float) or not isinstance(self.latitude, float):
+            self.longitude = 0.0
+            self.latitude = 0.0
         self.xy = self.collection.transformer.transform(self.longitude, self.latitude)
         self.x, self.y = self.xy
         if isinstance(self.pounds, float):
@@ -115,6 +118,8 @@ class Tower:
         else:
             self.kilograms = ""
             self.weight = ""
+        if not isinstance(self.bells, int):
+            self.bells = 0
         return self
 
     def from_dove(self, dove_row):
