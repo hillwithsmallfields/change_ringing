@@ -184,6 +184,14 @@ class Tower:
         new.collection = collection
         return new
 
+    def html(self, columns):
+        """Return an HTML table row string representing this tower."""
+        return ('  <tr>\n    '
+                + '\n    '.join('<td class="%s">%s</td>' % (colname,
+                                                            getattr(self, colname, ""))
+                                for colname in columns)
+                + '\n  </tr>')
+
 class TowerCollection:
 
     """A collection of towers, by name and by ID."""
@@ -274,6 +282,20 @@ class TowerCollection:
         """Return a new tower of the type used in this collection."""
         return self.tower_type(*args, **kwargs)
 
+    def html(self, columns):
+        """Return an HTML table representing this collection."""
+        return ('<table class="towers">\n'
+                + '\n  <tr>\n    ' + '\n    '.join('<th class="%s">%s</th>' % (col, col.title()) for col in columns) + '\n  </tr>\n'
+                + '\n'.join(row.html(columns) for row in self.by_id.values())
+                + '\n</table>\n')
+
+    def html_page(self, filename, title, columns):
+        """Write an HTML page containing a table representing this collection."""
+        with open(filename, 'w') as page:
+            page.write('<html><head><title>' + title + '</title></head>\n<body>\n'
+                       + self.html(columns)
+                       + '</body></html>\n')
+
     def read_dove(self, force_fetch=False):
         """Read the Dove data into a TowerCollection.
 
@@ -324,6 +346,9 @@ def main_for_testing():
     ely.dump_csv("/tmp/ely.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
     selected = ely.select(["Cambridge", "Histon", "Cherry Hinton", "Fulbourn", "Trumpington"])
     selected.dump_csv("/tmp/selected.csv", ['place', 'dedication'])
+    selected.html_page("/tmp/selected.html",
+                       "Selected towers",
+                       ['place', 'dedication', 'weight', 'requested', 'replied'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
 if __name__ == "__main__":
