@@ -56,9 +56,10 @@ class RoutingTowerCollection(towers.TowerCollection):
         return [self.tower_list[index] for index in self._touring_order], self.total_distance
 
     def touring_route(self):
+        """Return a list of the routes between towers."""
         tour, _ = self.touring_order()
         if not self.route:
-            self.route = [b.route_from(a) for a, b in zip(tour[:-1], tour[1:])]
+            self.route = [(tour[0], None)] + [(b, b.route_from(a)) for a, b in zip(tour[:-1], tour[1:])]
         return self.route
 
 def main_for_testing():
