@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import requests
+from requests_ratelimiter import LimiterSession
 import numpy as np
 from python_tsp.exact import solve_tsp_dynamic_programming
 
@@ -12,14 +12,15 @@ class RoutingTower(towers.Tower):
         super().__init__(*args, **kwargs)
         self.index = None
         self._routes_from = dict()
+        self.session = LimiterSession(per_second=1)
 
     def route_from(self, other, mode='driving'):
         """Return the route from another tower, as computed by OSRM."""
         other_id = "%s from %d" % (mode, other.tower_id)
         if other_id not in self._routes_from:
-            self._routes_from[other_id] = requests.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
-                                                        % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
-                                                       params={'geometries': 'geojson'}).json()
+            self._routes_from[other_id] = self.session.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
+                                                            % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
+                                                           params={'geometries': 'geojson'}).json()
         return self._routes_from[other_id]
 
 class RoutingTowerCollection(towers.TowerCollection):
