@@ -296,10 +296,12 @@ class TowerCollection:
                                                                 key=lambda row: getattr(row, columns[0])))
                 + '\n    </table>\n')
 
-    def html_page(self, filename, title, columns):
+    def html_page(self, filename, title, columns, style=""):
         """Write an HTML page containing a table representing this collection."""
         with open(filename, 'w') as page:
-            page.write('<html>\n  <head>\n    <title>' + title + '</title>\n  </head>\n  <body>\n'
+            page.write('<html>\n  <head>\n    <title>' + title + '</title>\n'
+                       + style
+                       + '  </head>\n  <body>\n'
                        + self.html(columns)
                        + '  </body>\n</html>\n')
 
