@@ -29,6 +29,10 @@ class RoutingTowerCollection(towers.TowerCollection):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.tower_list = None
+        self.distance_matrix = None
+        self._touring_order = None
+        self.total_distance = None
+        self.route = None
 
     def index_towers(self):
         """Number the towers, in preparation for making numpy arrays with them in.
@@ -42,16 +46,20 @@ class RoutingTowerCollection(towers.TowerCollection):
     def touring_order(self):
         """Return the best order in which to visit the towers in this collection."""
         n = self.index_towers()
-        print("planning tour for", n, "towers")
-        distances = np.zeros([n, n], dtype=float)
-        for i, from_tower in enumerate(self.tower_list):
-            print(i, from_tower)
-            for j, to_tower in enumerate(self.tower_list):
-                print("  ", j, to_tower)
-                if i != j:
-                    distances[i, j] = from_tower.crow(to_tower)
-        permutation, distance = solve_tsp_dynamic_programming(distances)
-        return [self.tower_list[index] for index in permutation], distance
+        if not self._touring_order:
+            self.distance_matrix = np.zeros([n, n], dtype=float)
+            for i, from_tower in enumerate(self.tower_list):
+                for j, to_tower in enumerate(self.tower_list):
+                    if i != j:
+                        self.distance_matrix[i, j] = from_tower.crow(to_tower)
+            self._touring_order, self.total_distance = solve_tsp_dynamic_programming(self.distance_matrix)
+        return [self.tower_list[index] for index in self._touring_order], self.total_distance
+
+    def touring_route(self):
+        tour, _ = self.touring_order()
+        if not self.route:
+            self.route = [b.route_from(a) for a, b in zip(tour[:-1], tour[1:])]
+        return self.route
 
 def main_for_testing():
     dove = RoutingTowerCollection().read_dove().bells_range(6,8).ringable()
@@ -66,6 +74,8 @@ def main_for_testing():
     for i, t in enumerate(order):
         print(i, t)
     print("total distance", total_distance)
+    for i, step in enumerate(in_miles.touring_route()):
+        print(i, step)
     print(combe_florey.route_from(dove["West Bagborough"][0]))
 
 if __name__ == "__main__":
