@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import json
+
 from requests_ratelimiter import LimiterSession
 import numpy as np
 from python_tsp.exact import solve_tsp_dynamic_programming
@@ -63,6 +65,28 @@ class RoutingTowerCollection(towers.TowerCollection):
             self.route = [(tour[0], None)] + [(b.route_from(a), b) for a, b in zip(tour[:-1], tour[1:])]
         return self.route
 
+    def _routes_to_dict(self):
+        """Make a JSON-serializable dict for all the known OSRM routes in this collection.
+        Intended for persisting the caches."""
+        return {dove_id: tower._routes_from
+                for dove_id, tower in self.by_id.items()}
+
+    def _routes_from_dict(self, incoming):
+        """Apply a JSON-serializable dict for all the known OSRM routes in this collection.
+        Intended for persisting the caches."""
+        for tower_id, cached_data in incoming.values():
+            self.by_id[tower_id]._routes_from.update(cached_data)
+
+    def save_routes(self, filename):
+        """Save the routes to a JSON file."""
+        with open(filename, 'w') as outstream:
+            json.dump(self._routes_to_dict(), outstream, indent=4)
+
+    def load_routes(self, filename):
+        """Load the routes from a JSON file."""
+        with open(filename) as instream:
+            self._routes_from_dict(json.load(outstream))
+
 def main_for_testing():
     dove = RoutingTowerCollection().read_dove().bells_range(6,8).ringable()
     combe_florey = dove["Combe Florey"][0]
@@ -76,6 +100,7 @@ def main_for_testing():
     print("total distance", total_distance)
     for i, step in enumerate(in_miles.touring_route()):
         print(i, step)
+    in_miles.save_routes("/tmp/routes.json")
     print(combe_florey.route_from(dove["West Bagborough"][0]))
 
 if __name__ == "__main__":
