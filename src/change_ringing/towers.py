@@ -160,11 +160,16 @@ class Tower:
                                             key=lambda other: math.dist(self.xy, other.xy))
         return self._neighbours_cache[1:(n+1) or 1000000]
 
+    def my_type_of_collection(self):
+        """Make a new collection of the same type as the one containing this tower."""
+        return type(self.collection)(projection=self.collection.projection,
+                                     tower_type=type(self))
+
     def within(self, distance, miles=True):
         """Return a collection of towers within a given distance of this one."""
         if miles:
             distance *= 1609.344
-        result = TowerCollection(projection=self.collection.projection)
+        result = self.my_type_of_collection()
         for tower in self.collection.by_id.values():
             if math.dist(self.xy, tower.xy) <= distance:
                 result.add_tower(copy.copy(tower))
@@ -193,8 +198,11 @@ class TowerCollection:
 
     """A collection of towers, by name and by ID."""
 
+    tower_type = Tower
+
     def __init__(self,
                  projection="EPSG:3857",
+                 tower_type=Tower,
                  ):
         self.by_name = collections.defaultdict(list)
         self.by_id = dict()
@@ -272,6 +280,26 @@ class TowerCollection:
         return self.filter_towers(lambda tower: any(selector in tower.names() or selector == tower.tower_id
                                                     for selector in selectors))
 
+    def my_type_of_tower(self, *args, **kwargs):
+        """Return a new tower of the type used in this collection."""
+        return self.tower_type(*args, **kwargs)
+
+    def read_dove(self, force_fetch=False):
+        """Read the Dove data into a TowerCollection.
+
+        Each tower appears under multiple names, as returned by the function `tower_names`.
+
+        Each entry is a list of towers with that name (so you can tell
+        whether you need more information for disambiguation).
+
+        The numerical TowerID from the Dove data is also used as a key.
+        """
+        download_dove(force_fetch)
+        with open(DOVE_FILE) as dovestream:
+            for tower in csv.DictReader(dovestream):
+                self.add_tower(self.my_type_of_tower(self).from_dove(tower))
+        return self
+
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
     if force_fetch or not os.path.exists(DOVE_FILE):
@@ -287,25 +315,8 @@ def download_dove(force_fetch=False):
         else:
             print("Failed to fetch Dove data")
 
-def read_dove(force_fetch=False):
-    """Read the Dove data into a TowerCollection.
-
-    Each tower appears under multiple names, as returned by the function `tower_names`.
-
-    Each entry is a list of towers with that name (so you can tell
-    whether you need more information for disambiguation).
-
-    The numerical TowerID from the Dove data is also used as a key.
-    """
-    download_dove(force_fetch)
-    dove = TowerCollection()
-    with open(DOVE_FILE) as dovestream:
-        for tower in csv.DictReader(dovestream):
-            dove.add_tower(Tower(dove).from_dove(tower))
-    return dove
-
 def main_for_testing():
-    dove = read_dove().bells_range(6,8).ringable()
+    dove = TowerCollection().read_dove().bells_range(6,8).ringable()
     # for k, v in dove.by_name.items():
     #     print(k, v)
     combe_florey = dove["Combe Florey"][0]
