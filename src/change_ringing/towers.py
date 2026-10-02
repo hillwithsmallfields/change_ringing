@@ -186,11 +186,11 @@ class Tower:
 
     def html(self, columns):
         """Return an HTML table row string representing this tower."""
-        return ('  <tr>\n    '
-                + '\n    '.join('<td class="%s">%s</td>' % (colname,
+        return ('      <tr>\n      '
+                + '\n        '.join('<td class="%s">%s</td>' % (colname,
                                                             getattr(self, colname, ""))
                                 for colname in columns)
-                + '\n  </tr>')
+                + '\n      </tr>')
 
 class TowerCollection:
 
@@ -284,17 +284,18 @@ class TowerCollection:
 
     def html(self, columns):
         """Return an HTML table representing this collection."""
-        return ('<table class="towers">\n'
-                + '\n  <tr>\n    ' + '\n    '.join('<th class="%s">%s</th>' % (col, col.title()) for col in columns) + '\n  </tr>\n'
-                + '\n'.join(row.html(columns) for row in self.by_id.values())
-                + '\n</table>\n')
+        return ('    <table class="towers">'
+                + '\n      <tr>\n        ' + '\n        '.join('<th class="%s">%s</th>' % (col, col.title()) for col in columns) + '\n      </tr>\n'
+                + '\n'.join(row.html(columns) for row in sorted(self.by_id.values(),
+                                                                key=lambda row: getattr(row, columns[0])))
+                + '\n    </table>\n')
 
     def html_page(self, filename, title, columns):
         """Write an HTML page containing a table representing this collection."""
         with open(filename, 'w') as page:
-            page.write('<html><head><title>' + title + '</title></head>\n<body>\n'
+            page.write('<html>\n  <head>\n    <title>' + title + '</title>\n  </head>\n  <body>\n'
                        + self.html(columns)
-                       + '</body></html>\n')
+                       + '  </body>\n</html>\n')
 
     def read_dove(self, force_fetch=False):
         """Read the Dove data into a TowerCollection.
