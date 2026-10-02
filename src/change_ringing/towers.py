@@ -226,7 +226,7 @@ class TowerCollection:
 
     def filter_towers(self, predicate):
         """Return a collection filtered by a predicate."""
-        result = TowerCollection(projection=self.projection)
+        result = type(self)(projection=self.projection)
         for k, v in self.by_name.items():
             for t in v:
                 if t.tower_id not in result.by_id and predicate(t):
