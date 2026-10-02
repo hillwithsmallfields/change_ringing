@@ -101,7 +101,6 @@ class Tower:
         It is given a back-reference to the collection of which it is part."""
         self.collection = dove_collection
         self._neighbours_cache = None
-        self._routes_from = dict()
 
     def normalise(self):
         """Complete the setup of a Tower object."""
@@ -179,15 +178,6 @@ class Tower:
         """Return the distance to another tower as the crow flies.
         The distance is miles by default, metres on request."""
         return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
-
-    def route_from(self, other, mode='driving'):
-        """Return the route from another tower, as computed by OSRM."""
-        other_id = "%s from %d" % (mode, other.tower_id)
-        if other_id not in self._routes_from:
-            self._routes_from[other_id] = requests.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
-                                                        % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
-                                                       params={'geometries': 'geojson'}).json()
-        return self._routes_from[other_id]
 
     def copy_into(self, collection):
         new = copy.copy(self)
@@ -335,7 +325,6 @@ def main_for_testing():
     selected = ely.select(["Cambridge", "Histon", "Cherry Hinton", "Fulbourn", "Trumpington"])
     selected.dump_csv("/tmp/selected.csv", ['place', 'dedication'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
-    print(combe_florey.route_from(dove["West Bagborough"][0]))
 
 if __name__ == "__main__":
     main_for_testing()
