@@ -70,6 +70,12 @@ def convert_if_possible(raw_value, converter):
     except ValueError:
         return raw_value
 
+def cell_text(column_name, cell_value):
+    return (', '.join('<a href="%s">%s</a>' % (url, url)
+                      for url in cell_value.split(' '))
+            if column_name == 'web_page'
+            else cell_value)
+
 # Conversion functions to apply, going by the raw column names
 COLUMN_CONVERTERS = {
     'TowerID': int,
@@ -188,7 +194,7 @@ class Tower:
         """Return an HTML table row string representing this tower."""
         return ('      <tr>\n      '
                 + '\n        '.join('<td class="%s">%s</td>' % (colname,
-                                                            getattr(self, colname, ""))
+                                                                cell_text(colname, getattr(self, colname, "")))
                                 for colname in columns)
                 + '\n      </tr>')
 
@@ -349,7 +355,7 @@ def main_for_testing():
     selected.dump_csv("/tmp/selected.csv", ['place', 'dedication'])
     selected.html_page("/tmp/selected.html",
                        "Selected towers",
-                       ['place', 'dedication', 'weight', 'requested', 'replied'])
+                       ['place', 'dedication', 'weight', 'web_page', 'requested', 'replied'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
 if __name__ == "__main__":
