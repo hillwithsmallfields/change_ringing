@@ -59,14 +59,12 @@ class RoutingTowerCollection(towers.TowerCollection):
         """Return a list of the routes between towers."""
         tour, _ = self.touring_order()
         if not self.route:
-            self.route = [(tour[0], None)] + [(b, b.route_from(a)) for a, b in zip(tour[:-1], tour[1:])]
+            self.route = [(tour[0], None)] + [(b.route_from(a), b) for a, b in zip(tour[:-1], tour[1:])]
         return self.route
 
 def main_for_testing():
     dove = RoutingTowerCollection().read_dove().bells_range(6,8).ringable()
     combe_florey = dove["Combe Florey"][0]
-    print(combe_florey)
-    nearby = combe_florey.neighbours(12)
     in_miles = combe_florey.within(4)
     in_miles.dump_csv("/tmp/miles.csv", ['place', 'dedication', 'longitude', 'latitude'])
     for i, tower in enumerate(in_miles.by_id.values()):
