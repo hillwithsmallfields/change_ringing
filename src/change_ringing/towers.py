@@ -254,6 +254,10 @@ class TowerCollection:
         """Return a collection filtered by the number of bells."""
         return self.filter_towers(lambda tower: tower.bells in set(range(minimum or 1, (maximum or 19) + 1)))
 
+    def weight_range(self, minimum=0.0, maximum=11200.0):
+        """Return a collection filtered by the tenor weight."""
+        return self.filter_towers(lambda tower: minimum <= tower.pounds <= maximum)
+
     def ringable(self):
         """Return a collection of the ringable towers in this collection."""
         return self.filter_towers(lambda tower: not tower.unringable)
