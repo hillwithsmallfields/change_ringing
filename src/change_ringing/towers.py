@@ -77,7 +77,7 @@ def convert_if_possible(raw_value, converter):
 def cell_text(column_name,
               cell_value,
               row_number,
-              templated):
+              templated_text):
     """Return the text for a cell."""
     return (', '.join('<a href="%s">%s</a>' % (url, url)
                       for url in cell_value.split(' '))
@@ -86,8 +86,8 @@ def cell_text(column_name,
                   if isinstance(cell_value, float)
                   else (str(row_number+1)
                         if column_name == "number"
-                          else (templated
-                                if column_name == "template"
+                          else (templated_text
+                                if column_name == "text"
                                 else cell_value))))
 
 # Conversion functions to apply, going by the raw column names
@@ -206,7 +206,7 @@ class Tower:
         new.collection = collection
         return new
 
-    def html(self, columns, row_number, template):
+    def html(self, columns, row_number, text):
         """Return an HTML table row string representing this tower."""
         attributes = self.to_dict()
         return ('      <tr>\n      '
@@ -214,7 +214,7 @@ class Tower:
                                                                 cell_text(colname,
                                                                           getattr(self, colname, ""),
                                                                           row_number,
-                                                                          template % attributes))
+                                                                          text % attributes))
                                 for colname in columns)
                 + '\n      </tr>')
 
@@ -272,7 +272,6 @@ class TowerCollection:
 
     def bells_range(self, minimum=None, maximum=None):
         """Return a collection filtered by the number of bells."""
-        print("filtering collection to be between", minimum, "and", maximum, "bells")
         return self.filter_towers(lambda tower: tower.bells in set(range(minimum or 1, (maximum or 19) + 1)))
 
     def weight_range(self, minimum=0.0, maximum=11200.0):
@@ -313,7 +312,7 @@ class TowerCollection:
         """Return a new tower of the type used in this collection."""
         return self.tower_type(*args, **kwargs)
 
-    def html(self, columns, template):
+    def html(self, columns, text):
         """Return an HTML table representing this collection."""
         sorting_column = 1 if columns[0] == 'number' else 0
         return ('    <table class="towers">'
@@ -321,18 +320,18 @@ class TowerCollection:
                                                                % (col,
                                                                   " ".join(col.split("_")).title())
                                                                for col in columns) + '\n      </tr>\n'
-                + '\n'.join(row.html(columns, row_number, template)
+                + '\n'.join(row.html(columns, row_number, text)
                             for row_number, row in enumerate(sorted(self.by_id.values(),
                                                                     key=lambda row: getattr(row, columns[sorting_column]))))
                 + '\n    </table>\n')
 
-    def html_page(self, filename, title, columns, style="", template=""):
+    def html_page(self, filename, title, columns, style="", text=""):
         """Write an HTML page containing a table representing this collection."""
         with open(filename, 'w') as page:
             page.write('<html>\n  <head>\n    <title>' + title + '</title>\n'
                        + style
                        + '  </head>\n  <body>\n'
-                       + self.html(columns, template)
+                       + self.html(columns, text)
                        + '  </body>\n</html>\n')
 
     def read_dove(self, force_fetch=False):
@@ -421,28 +420,101 @@ def filter_towers_by_command_line_args(
     return towers
 
 def add_tower_args(parser):
-    parser.add_argument("--min-weight", type=float)
-    parser.add_argument("--max-weight", type=float)
-    parser.add_argument("--min-bells", type=int)
-    parser.add_argument("--max-bells", type=int)
-    parser.add_argument("--ground-floor", action='store_true')
-    parser.add_argument("--county", type=str)
-    parser.add_argument("--diocese", type=str)
-    parser.add_argument("--affiliation", type=str)
-    parser.add_argument("--select", type=str)
-    parser.add_argument("--near", type=str)
-    parser.add_argument("--within", type=float)
+    """Add tower selection args to an ArgumentParser."""
+    parser.add_argument(
+        "--min-weight",
+        type=float,
+        help="""Include only towers with at least this tenor weight.""")
+    parser.add_argument(
+        "--max-weight",
+        type=float,
+        help="""Include only towers with at most this tenor weight.""")
+    parser.add_argument(
+        "--min-bells",
+        type=int,
+        help="""Include only towers with at least this many bells.""")
+    parser.add_argument(
+        "--max-bells",
+        type=int,
+        help="""Include only towers with at most this many bells.""")
+    parser.add_argument(
+        "--ground-floor",
+        action='store_true',
+        help="""Include only towers with ground-floor ringing rooms.""")
+    parser.add_argument(
+        "--county",
+        type=str,
+        help="""Include only towers from this county.""")
+    parser.add_argument(
+        "--diocese",
+        type=str,
+        help="""Include only towers from this diocese.""")
+    parser.add_argument(
+        "--affiliation",
+        type=str,
+        help="""Include only towers with this affiliation.""")
+    parser.add_argument(
+        "--select",
+        type=str,
+        help="""Include only the named towers, given as a comma-separated list.""")
+    parser.add_argument(
+        "--near",
+        type=str,
+        help="""Include only towers with a given distance of the named tower.
+        You must also give --within to specify the distance.""")
+    parser.add_argument(
+        "--within",
+        type=float,
+        help="""Include only towers within this number of miles from the tower given as --near.""")
     return parser
 
 def get_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+    description="""
+    Here is an example command line, for producing a table for arranging an outing:
+
+    towers.py --near "Bury St Edmunds" --within 15 --html /tmp/near-bury-st-edmunds.html --columns number,distance,place,bells,weight,web_page,text --min-bells 4 --text "I am looking for towers for a ringing outing in July, and am interested in including %%(place)s, either for the touring group (about 45 minutes of ringing at each tower) or for a quarter peal or a peal. Do you think this might be possible?" --style "<style>td.bells { font-weight: bold;}</style>"
+    """
+    )
     add_tower_args(parser)
-    parser.add_argument("--html", type=str)
-    parser.add_argument("--title", type=str, default="Tower list")
-    parser.add_argument("--csv", type=str)
-    parser.add_argument("--columns", type=str)
-    parser.add_argument("--style", type=str, default="")
-    parser.add_argument("--template", type=str, default="")
+    parser.add_argument(
+        "--html",
+        type=str,
+        help="""Write an HTML page containing a table of towers, to this file.""")
+    parser.add_argument(
+        "--title",
+        type=str, default="Tower list")
+    parser.add_argument(
+        "--csv",
+        type=str,
+        help="""Write a CSV table of towers, to this file.""")
+    parser.add_argument(
+        "--columns",
+        type=str,
+        help="""The names of columns to include in the HTML or CSV file, as a comma-separated list.
+        The names are the snake-cased attribute names.
+        For HTML output, two dummy column names are available:
+        - number:   the row number in the table
+        - text:     a templated value using Python's '%%' string-substitution operator
+                    to do named substitution using a dictionary of the tower's attributes.
+        The rows are sorted by the first column, unless the first column is 'number',
+        in which case they are sorted by the second column.""")
+    parser.add_argument(
+        "--style",
+        type=str,
+        default="",
+        help="""A style string to include in the header of the HTML output.
+        The table cells have the column names as their 'class' values.""")
+    parser.add_argument(
+        "--text",
+        type=str,
+        default="",
+        help="""A templated string to use in the synthetic HTML table column called 'text'.
+        This uses Python's '%%' string-substitution operator with a dictionary containing the
+        attributes of the tower.
+        This is intended for writing form letters for organising tours, for example:
+        "We would like to ring at %%(place)s."
+        """)
     return vars(parser.parse_args())
 
 def main(
@@ -460,13 +532,12 @@ def main(
         columns,
         title,
         style,
-        template,
+        text,
 ):
     if not (near and within):
         raise ValueError("If either of --near or --within is given, both must be given.")
     if (csv or html) and not columns:
         raise ValueError("If either --csv or --html is given, --columns must be given.")
-    print("in main", min_bells, max_bells)
     towers = filter_towers_by_command_line_args(
         towers=TowerCollection().read_dove(),
         min_weight=min_weight, max_weight=max_weight,
@@ -482,7 +553,7 @@ def main(
     if csv:
         towers.dump_csv(csv, columns.split(","))
     if html:
-        towers.html_page(html, title, columns.split(","), style, template)
+        towers.html_page(html, title, columns.split(","), style, text)
 
 if __name__ == "__main__":
     main(**get_args())
