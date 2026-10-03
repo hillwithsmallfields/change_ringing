@@ -14,6 +14,8 @@ import pyproj
 DOVE_FILE = os.path.expanduser("~/Downloads/dove.csv")
 DOVE_URL = "https://dove.cccbr.org.uk/towers.csv"
 
+METRES_PER_MILE = 1609.344
+
 # Make column names more suitable for use as object attribute names;
 # whether or not found in this table, they are downcased for use.
 COLUMN_RENAMES = {
@@ -71,11 +73,15 @@ def convert_if_possible(raw_value, converter):
     except ValueError:
         return raw_value
 
-def cell_text(column_name, cell_value):
+def cell_text(column_name, cell_value, row_number):
     return (', '.join('<a href="%s">%s</a>' % (url, url)
                       for url in cell_value.split(' '))
             if column_name == 'web_page'
-            else cell_value)
+            else (("%.2f" % cell_value)
+                  if isinstance(cell_value, float)
+                  else (str(row_number+1)
+                        if column_name == "number"
+                          else cell_value)))
 
 # Conversion functions to apply, going by the raw column names
 COLUMN_CONVERTERS = {
@@ -174,11 +180,13 @@ class Tower:
     def within(self, distance, miles=True):
         """Return a collection of towers within a given distance of this one."""
         if miles:
-            distance *= 1609.344
+            distance *= METRES_PER_MILE
         result = self.my_type_of_collection()
         for tower in self.collection.by_id.values():
-            if math.dist(self.xy, tower.xy) <= distance:
-                result.add_tower(copy.copy(tower))
+            if (my_distance := math.dist(self.xy, tower.xy)) <= distance:
+                copied = copy.copy(tower)
+                copied.distance = my_distance / METRES_PER_MILE
+                result.add_tower(copied)
         return result
 
     def crow(self, other, miles=True):
@@ -191,11 +199,13 @@ class Tower:
         new.collection = collection
         return new
 
-    def html(self, columns):
+    def html(self, columns, row_number):
         """Return an HTML table row string representing this tower."""
         return ('      <tr>\n      '
                 + '\n        '.join('<td class="%s">%s</td>' % (colname,
-                                                                cell_text(colname, getattr(self, colname, "")))
+                                                                cell_text(colname,
+                                                                          getattr(self, colname, ""),
+                                                                          row_number))
                                 for colname in columns)
                 + '\n      </tr>')
 
@@ -253,6 +263,7 @@ class TowerCollection:
 
     def bells_range(self, minimum=None, maximum=None):
         """Return a collection filtered by the number of bells."""
+        print("filtering collection to be between", minimum, "and", maximum, "bells")
         return self.filter_towers(lambda tower: tower.bells in set(range(minimum or 1, (maximum or 19) + 1)))
 
     def weight_range(self, minimum=0.0, maximum=11200.0):
@@ -295,10 +306,15 @@ class TowerCollection:
 
     def html(self, columns):
         """Return an HTML table representing this collection."""
+        sorting_column = 1 if columns[0] == 'number' else 0
         return ('    <table class="towers">'
-                + '\n      <tr>\n        ' + '\n        '.join('<th class="%s">%s</th>' % (col, col.title()) for col in columns) + '\n      </tr>\n'
-                + '\n'.join(row.html(columns) for row in sorted(self.by_id.values(),
-                                                                key=lambda row: getattr(row, columns[0])))
+                + '\n      <tr>\n        ' + '\n        '.join('<th class="%s">%s</th>'
+                                                               % (col,
+                                                                  " ".join(col.split("_")).title())
+                                                               for col in columns) + '\n      </tr>\n'
+                + '\n'.join(row.html(columns, row_number)
+                            for row_number, row in enumerate(sorted(self.by_id.values(),
+                                                                    key=lambda row: getattr(row, columns[sorting_column]))))
                 + '\n    </table>\n')
 
     def html_page(self, filename, title, columns, style=""):
@@ -379,21 +395,20 @@ def filter_towers_by_command_line_args(
 ):
     if near or within:
         towers = towers[near][0].within(within)
-    else:
-        if min_weight or max_weight:
-            towers = towers.weight_range(min_weight, max_weight)
-        if min_bells or max_bells:
-            towers = towers.bells_range(min_bells, max_bells)
-        if ground_floor:
-            towers = towers.ground_floor()
-        if county:
-            towers = towers.in_county(county)
-        if diocese:
-            towers = towers.in_diocese(diocese)
-        if affiliation:
-            towers = towers.affiliated_to(affiliation)
-        if select:
-            towers = towers.select(select.split(","))
+    if min_weight or max_weight:
+        towers = towers.weight_range(min_weight, max_weight)
+    if min_bells or max_bells:
+        towers = towers.bells_range(min_bells, max_bells)
+    if ground_floor:
+        towers = towers.ground_floor()
+    if county:
+        towers = towers.in_county(county)
+    if diocese:
+        towers = towers.in_diocese(diocese)
+    if affiliation:
+        towers = towers.affiliated_to(affiliation)
+    if select:
+        towers = towers.select(select.split(","))
     return towers
 
 def add_tower_args(parser):
@@ -440,17 +455,18 @@ def main(
         raise ValueError("If either of --near or --within is given, both must be given.")
     if (csv or html) and not columns:
         raise ValueError("If either --csv or --html is given, --columns must be given.")
+    print("in main", min_bells, max_bells)
     towers = filter_towers_by_command_line_args(
-        TowerCollection().read_dove(),
-        min_weight, max_weight,
-        min_bells, max_bells,
-        ground_floor,
-        county,
-        diocese,
-        affiliation,
-        select,
-        near,
-        within,
+        towers=TowerCollection().read_dove(),
+        min_weight=min_weight, max_weight=max_weight,
+        min_bells=min_bells, max_bells=max_bells,
+        ground_floor=ground_floor,
+        county=county,
+        diocese=diocese,
+        affiliation=affiliation,
+        select=select,
+        near=near,
+        within=within,
     )
     if csv:
         towers.dump_csv(csv, columns.split(","))
