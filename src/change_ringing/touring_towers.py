@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import argparse
 import json
 
 from requests_ratelimiter import LimiterSession
@@ -103,5 +104,40 @@ def main_for_testing():
     in_miles.save_routes("/tmp/routes.json")
     print(combe_florey.route_from(dove["West Bagborough"][0]))
 
+def get_args():
+    parser = argparse.ArgumentParser()
+    towers.add_tower_args(parser)
+    parser.add_argument("--order", action='store_true')
+    parser.add_argument("--route")
+    return vars(parser.parse_args())
+
+def main(
+        min_weight, max_weight,
+        min_bells, max_bells,
+        ground_floor,
+        county,
+        diocese,
+        affiliation,
+        select,
+        order,
+        route,
+):
+    tower_list = towers.filter_towers_by_command_line_args(
+        RoutingTowerCollection().read_dove(),
+        min_weight, max_weight,
+        min_bells, max_bells,
+        ground_floor,
+        county,
+        diocese,
+        affiliation,
+        select,
+    )
+    if order:
+        order, total_distance = tower_list.touring_order()
+        print(order, total_distance)
+    if route:
+        with open(route, 'w') as json_stream:
+            json.dump(tower_list.touring_route(), json_stream)
+
 if __name__ == "__main__":
-    main_for_testing()
+    main(**get_args())

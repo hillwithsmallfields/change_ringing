@@ -365,6 +365,32 @@ def examples():
                        ['place', 'dedication', 'weight', 'web_page', 'requested', 'replied'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
+def filter_towers_by_command_line_args(
+        towers,
+        min_weight, max_weight,
+        min_bells, max_bells,
+        ground_floor,
+        county,
+        diocese,
+        affiliation,
+        select,
+):
+    if min_weight or max_weight:
+        towers = towers.weight_range(min_weight, max_weight)
+    if min_bells or max_bells:
+        towers = towers.bells_range(min_bells, max_bells)
+    if ground_floor:
+        towers = towers.ground_floor()
+    if county:
+        towers = towers.in_county(county)
+    if diocese:
+        towers = towers.in_diocese(diocese)
+    if affiliation:
+        towers = towers.affiliated_to(affiliation)
+    if select:
+        towers = towers.select(select.split(","))
+    return towers
+
 def add_tower_args(parser):
     parser.add_argument("--min-weight", type=float)
     parser.add_argument("--max-weight", type=float)
@@ -401,21 +427,16 @@ def main(
         title,
         style,
 ):
-    towers = TowerCollection().read_dove()
-    if min_weight or max_weight:
-        towers = towers.weight_range(min_weight, max_weight)
-    if min_bells or max_bells:
-        towers = towers.bells_range(min_bells, max_bells)
-    if ground_floor:
-        towers = towers.ground_floor()
-    if county:
-        towers = towers.in_county(county)
-    if diocese:
-        towers = towers.in_diocese(diocese)
-    if affiliation:
-        towers = towers.affiliated_to(affiliation)
-    if select:
-        towers = towers.select(select.split(","))
+    towers = filter_towers_by_command_line_args(
+        TowerCollection().read_dove(),
+        min_weight, max_weight,
+        min_bells, max_bells,
+        ground_floor,
+        county,
+        diocese,
+        affiliation,
+        select,
+    )
     if csv:
         towers.dump_csv(csv, columns.split(","))
     if html:
