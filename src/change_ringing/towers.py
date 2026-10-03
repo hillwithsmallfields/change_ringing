@@ -151,10 +151,12 @@ class Tower:
 
     def to_dict(self, fields=None):
         """Return a dictionary of the specified fields of this tower."""
-        return {field: (getattr(self, field)
-                        if hasattr(self, field)
-                        else "")
-                for field in fields or dir(self)}
+        return {field_name: field_value
+                for field_name, field_value in {k: getattr(self, k)
+                                                for k in (fields or dir(self))
+                                                if hasattr(self, k) and not k.startswith("_")
+                                                }.items()
+                if isinstance(field_value, (int, float, str, bool, list, dict))}
 
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
