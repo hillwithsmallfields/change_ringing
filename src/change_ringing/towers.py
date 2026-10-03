@@ -374,21 +374,26 @@ def filter_towers_by_command_line_args(
         diocese,
         affiliation,
         select,
+        near,
+        within,
 ):
-    if min_weight or max_weight:
-        towers = towers.weight_range(min_weight, max_weight)
-    if min_bells or max_bells:
-        towers = towers.bells_range(min_bells, max_bells)
-    if ground_floor:
-        towers = towers.ground_floor()
-    if county:
-        towers = towers.in_county(county)
-    if diocese:
-        towers = towers.in_diocese(diocese)
-    if affiliation:
-        towers = towers.affiliated_to(affiliation)
-    if select:
-        towers = towers.select(select.split(","))
+    if near or within:
+        towers = towers[near][0].within(within)
+    else:
+        if min_weight or max_weight:
+            towers = towers.weight_range(min_weight, max_weight)
+        if min_bells or max_bells:
+            towers = towers.bells_range(min_bells, max_bells)
+        if ground_floor:
+            towers = towers.ground_floor()
+        if county:
+            towers = towers.in_county(county)
+        if diocese:
+            towers = towers.in_diocese(diocese)
+        if affiliation:
+            towers = towers.affiliated_to(affiliation)
+        if select:
+            towers = towers.select(select.split(","))
     return towers
 
 def add_tower_args(parser):
@@ -401,6 +406,8 @@ def add_tower_args(parser):
     parser.add_argument("--diocese", type=str)
     parser.add_argument("--affiliation", type=str)
     parser.add_argument("--select", type=str)
+    parser.add_argument("--near", type=str)
+    parser.add_argument("--within", type=float)
     return parser
 
 def get_args():
@@ -421,12 +428,18 @@ def main(
         diocese,
         affiliation,
         select,
+        near,
+        within,
         csv,
         html,
         columns,
         title,
         style,
 ):
+    if not (near and within):
+        raise ValueError("If either of --near or --within is given, both must be given.")
+    if (csv or html) and not columns:
+        raise ValueError("If either --csv or --html is given, --columns must be given.")
     towers = filter_towers_by_command_line_args(
         TowerCollection().read_dove(),
         min_weight, max_weight,
@@ -436,6 +449,8 @@ def main(
         diocese,
         affiliation,
         select,
+        near,
+        within,
     )
     if csv:
         towers.dump_csv(csv, columns.split(","))
