@@ -21,9 +21,11 @@ class RoutingTower(towers.Tower):
         """Return the route from another tower, as computed by OSRM."""
         other_id = "%s from %d" % (mode, other.tower_id)
         if other_id not in self._routes_from:
-            self._routes_from[other_id] = self.session.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
-                                                            % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
-                                                           params={'geometries': 'geojson'}).json()
+            self._routes_from[other_id] = {
+                'description': "%s route from %s to %s" % (mode, other.place, self.place),
+                'osrm': self.session.get(("http://router.project-osrm.org/route/v1/%s/%f,%f;%f,%f"
+                                          % (mode, other.longitude, other.latitude, self.longitude, self.latitude)),
+                                         params={'geometries': 'geojson'}).json()}
         return self._routes_from[other_id]
 
 class RoutingTowerCollection(towers.TowerCollection):
@@ -63,7 +65,7 @@ class RoutingTowerCollection(towers.TowerCollection):
         """Return a list of the routes between towers."""
         tour, _ = self.touring_order()
         if not self.route:
-            self.route = [(tour[0], None)] + [(b.route_from(a), b) for a, b in zip(tour[:-1], tour[1:])]
+            self.route = [(None, tour[0].to_dict())] + [(b.route_from(a), b.to_dict()) for a, b in zip(tour[:-1], tour[1:])]
         return self.route
 
     def _routes_to_dict(self):
@@ -73,7 +75,7 @@ class RoutingTowerCollection(towers.TowerCollection):
                 for dove_id, tower in self.by_id.items()}
 
     def _routes_from_dict(self, incoming):
-        """Apply a JSON-serializable dict for all the known OSRM routes in this collection.
+        """Load a JSON-serializable dict for all the known OSRM routes in this collection.
         Intended for persisting the caches."""
         for tower_id, cached_data in incoming.values():
             self.by_id[tower_id]._routes_from.update(cached_data)
@@ -119,18 +121,22 @@ def main(
         diocese,
         affiliation,
         select,
+        near,
+        within,
         order,
         route,
 ):
     tower_list = towers.filter_towers_by_command_line_args(
-        RoutingTowerCollection().read_dove(),
-        min_weight, max_weight,
-        min_bells, max_bells,
-        ground_floor,
-        county,
-        diocese,
-        affiliation,
-        select,
+        towers=RoutingTowerCollection().read_dove(),
+        min_weight=min_weight, max_weight=max_weight,
+        min_bells=min_bells, max_bells=max_bells,
+        ground_floor=ground_floor,
+        county=county,
+        diocese=diocese,
+        affiliation=affiliation,
+        select=select,
+        near=near,
+        within=within,
     )
     if order:
         order, total_distance = tower_list.touring_order()
