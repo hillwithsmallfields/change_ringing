@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import collections
 import copy
 import csv
@@ -340,7 +341,7 @@ def download_dove(force_fetch=False):
         else:
             print("Failed to fetch Dove data")
 
-def main_for_testing():
+def examples():
     dove = TowerCollection().read_dove().bells_range(6,8).ringable()
     # for k, v in dove.by_name.items():
     #     print(k, v)
@@ -364,5 +365,61 @@ def main_for_testing():
                        ['place', 'dedication', 'weight', 'web_page', 'requested', 'replied'])
     dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
+def add_tower_args(parser):
+    parser.add_argument("--min-weight", type=float)
+    parser.add_argument("--max-weight", type=float)
+    parser.add_argument("--min-bells", type=int)
+    parser.add_argument("--max-bells", type=int)
+    parser.add_argument("--ground-floor", action='store_true')
+    parser.add_argument("--county", type=str)
+    parser.add_argument("--diocese", type=str)
+    parser.add_argument("--affiliation", type=str)
+    parser.add_argument("--select", type=str)
+    return parser
+
+def get_args():
+    parser = argparse.ArgumentParser()
+    add_tower_args(parser)
+    parser.add_argument("--html", type=str)
+    parser.add_argument("--title", type=str, default="Tower list")
+    parser.add_argument("--csv", type=str)
+    parser.add_argument("--columns", type=str)
+    parser.add_argument("--style", type=str, default="")
+    return vars(parser.parse_args())
+
+def main(
+        min_weight, max_weight,
+        min_bells, max_bells,
+        ground_floor,
+        county,
+        diocese,
+        affiliation,
+        select,
+        csv,
+        html,
+        columns,
+        title,
+        style,
+):
+    towers = TowerCollection().read_dove()
+    if min_weight or max_weight:
+        towers = towers.weight_range(min_weight, max_weight)
+    if min_bells or max_bells:
+        towers = towers.bells_range(min_bells, max_bells)
+    if ground_floor:
+        towers = towers.ground_floor()
+    if county:
+        towers = towers.in_county(county)
+    if diocese:
+        towers = towers.in_diocese(diocese)
+    if affiliation:
+        towers = towers.affiliated_to(affiliation)
+    if select:
+        towers = towers.select(select.split(","))
+    if csv:
+        towers.dump_csv(csv, columns.split(","))
+    if html:
+        towers.html_page(html, title, columns.split(","), style)
+
 if __name__ == "__main__":
-    main_for_testing()
+    main(**get_args())
