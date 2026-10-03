@@ -68,12 +68,17 @@ def convert_date(date_string):
             return date_string
 
 def convert_if_possible(raw_value, converter):
+    """A safe wrapper for conversion functions."""
     try:
         return converter(raw_value)
     except ValueError:
         return raw_value
 
-def cell_text(column_name, cell_value, row_number):
+def cell_text(column_name,
+              cell_value,
+              row_number,
+              templated):
+    """Return the text for a cell."""
     return (', '.join('<a href="%s">%s</a>' % (url, url)
                       for url in cell_value.split(' '))
             if column_name == 'web_page'
@@ -81,7 +86,9 @@ def cell_text(column_name, cell_value, row_number):
                   if isinstance(cell_value, float)
                   else (str(row_number+1)
                         if column_name == "number"
-                          else cell_value)))
+                          else (templated
+                                if column_name == "template"
+                                else cell_value))))
 
 # Conversion functions to apply, going by the raw column names
 COLUMN_CONVERTERS = {
@@ -142,12 +149,12 @@ class Tower:
                     convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
         return self.normalise()
 
-    def to_dict(self, fields):
+    def to_dict(self, fields=None):
         """Return a dictionary of the specified fields of this tower."""
         return {field: (getattr(self, field)
                         if hasattr(self, field)
                         else "")
-                for field in fields}
+                for field in fields or dir(self)}
 
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
@@ -199,13 +206,15 @@ class Tower:
         new.collection = collection
         return new
 
-    def html(self, columns, row_number):
+    def html(self, columns, row_number, template):
         """Return an HTML table row string representing this tower."""
+        attributes = self.to_dict()
         return ('      <tr>\n      '
                 + '\n        '.join('<td class="%s">%s</td>' % (colname,
                                                                 cell_text(colname,
                                                                           getattr(self, colname, ""),
-                                                                          row_number))
+                                                                          row_number,
+                                                                          template % attributes))
                                 for colname in columns)
                 + '\n      </tr>')
 
@@ -304,7 +313,7 @@ class TowerCollection:
         """Return a new tower of the type used in this collection."""
         return self.tower_type(*args, **kwargs)
 
-    def html(self, columns):
+    def html(self, columns, template):
         """Return an HTML table representing this collection."""
         sorting_column = 1 if columns[0] == 'number' else 0
         return ('    <table class="towers">'
@@ -312,18 +321,18 @@ class TowerCollection:
                                                                % (col,
                                                                   " ".join(col.split("_")).title())
                                                                for col in columns) + '\n      </tr>\n'
-                + '\n'.join(row.html(columns, row_number)
+                + '\n'.join(row.html(columns, row_number, template)
                             for row_number, row in enumerate(sorted(self.by_id.values(),
                                                                     key=lambda row: getattr(row, columns[sorting_column]))))
                 + '\n    </table>\n')
 
-    def html_page(self, filename, title, columns, style=""):
+    def html_page(self, filename, title, columns, style="", template=""):
         """Write an HTML page containing a table representing this collection."""
         with open(filename, 'w') as page:
             page.write('<html>\n  <head>\n    <title>' + title + '</title>\n'
                        + style
                        + '  </head>\n  <body>\n'
-                       + self.html(columns)
+                       + self.html(columns, template)
                        + '  </body>\n</html>\n')
 
     def read_dove(self, force_fetch=False):
@@ -433,6 +442,7 @@ def get_args():
     parser.add_argument("--csv", type=str)
     parser.add_argument("--columns", type=str)
     parser.add_argument("--style", type=str, default="")
+    parser.add_argument("--template", type=str, default="")
     return vars(parser.parse_args())
 
 def main(
@@ -450,6 +460,7 @@ def main(
         columns,
         title,
         style,
+        template,
 ):
     if not (near and within):
         raise ValueError("If either of --near or --within is given, both must be given.")
@@ -471,7 +482,7 @@ def main(
     if csv:
         towers.dump_csv(csv, columns.split(","))
     if html:
-        towers.html_page(html, title, columns.split(","), style)
+        towers.html_page(html, title, columns.split(","), style, template)
 
 if __name__ == "__main__":
     main(**get_args())
