@@ -68,6 +68,37 @@ class RoutingTowerCollection(towers.TowerCollection):
             self.route = [(None, tour[0].to_dict())] + [(b.route_from(a), b.to_dict()) for a, b in zip(tour[:-1], tour[1:])]
         return self.route
 
+    def geojson(self):
+        raw = self.touring_route()
+        journeys, towers = zip(*raw)
+        journeys = [{'description': j['description'],
+                     'geometry': j['osrm']['routes'][0]['geometry']}
+                    for j in journeys
+                    if j]
+        return {
+            'type': 'FeatureCollection',
+            'features': [
+                    {
+                        'type': 'Feature',
+                        'properties': tower,
+                        'geometry': {
+                            'type': 'Point',
+                            'coordinates': [
+                            tower['longitude'],
+                            tower['latitude'],
+                        ]}
+                    }
+                    for tower in towers
+                ] + [
+                {
+                    'type': 'Feature',
+                    'geometry': f['geometry'],
+                    'properties': {'description': f['description']}
+                }
+                for f in journeys
+                ]
+        }
+
     def _routes_to_dict(self):
         """Make a JSON-serializable dict for all the known OSRM routes in this collection.
         Intended for persisting the caches."""
@@ -111,6 +142,7 @@ def get_args():
     towers.add_tower_args(parser)
     parser.add_argument("--order", action='store_true')
     parser.add_argument("--route")
+    parser.add_argument("--geojson")
     return vars(parser.parse_args())
 
 def main(
@@ -125,6 +157,7 @@ def main(
         within,
         order,
         route,
+        geojson,
 ):
     tower_list = towers.filter_towers_by_command_line_args(
         towers=RoutingTowerCollection().read_dove(),
@@ -143,7 +176,14 @@ def main(
         print(order, total_distance)
     if route:
         with open(route, 'w') as json_stream:
-            json.dump(tower_list.touring_route(), json_stream)
+            json.dump(tower_list.touring_route(),
+                      json_stream,
+                      indent=4)
+    if geojson:
+        with open(geojson, 'w') as json_stream:
+            json.dump(tower_list.geojson(),
+                      json_stream,
+                      indent=4)
 
 if __name__ == "__main__":
     main(**get_args())
