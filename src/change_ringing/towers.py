@@ -110,20 +110,28 @@ COLUMN_CONVERTERS = {
     'TowerBase': int,
     'SNLat': float,
     'SNLong': float,
+    'Rating': float,
 }
 
-class Tower:
+class Venue:
 
-    """The representation of a tower as read from the Dove CSV file."""
+    """A representation of places where ringers may navigate to on a tour.
+
+    This includes Towers, and also hotels, pubs, curry houses, etc."""
 
     def __init__(self, dove_collection):
-        """Set up a Tower object.
+        """Set up a Venue object.
         It is given a back-reference to the collection of which it is part."""
         self.collection = dove_collection
-        self._neighbours_cache = None
+        self.venue_type = "Venue"
+        # set up enough that .normalise() will work even if coordinates aren't provided
+        self.longitude = 0.0
+        self.latitude = 0.0
+        self.satnav_longitude = 0.0
+        self.satnav_latitude = 0.0
 
     def normalise(self):
-        """Complete the setup of a Tower object."""
+        """Complete the setup of a Venue object."""
         self.longlat = (self.longitude, self.latitude)
         self.navlonglat = (self.satnav_longitude, self.satnav_latitude)
         if not isinstance(self.longitude, float) or not isinstance(self.latitude, float):
@@ -131,17 +139,9 @@ class Tower:
             self.latitude = 0.0
         self.xy = self.collection.transformer.transform(self.longitude, self.latitude)
         self.x, self.y = self.xy
-        if isinstance(self.pounds, float):
-            self.kilograms = self.pounds / 2.2046226218488
-            self.weight = "%d-%d-%d" % (self.pounds // 112, (self.pounds // 28) % 4, self.pounds % 28)
-        else:
-            self.kilograms = ""
-            self.weight = ""
-        if not isinstance(self.bells, int):
-            self.bells = 0
         return self
 
-    def from_dove(self, dove_row):
+    def add_data_from_row(self, dove_row):
         """Fill in a Tower object from a row of the Dove CSV file."""
         for key, value in dove_row.items():
             setattr(self,
@@ -158,6 +158,31 @@ class Tower:
                                                 }.items()
                 if isinstance(field_value, (int, float, str, bool, list, dict))}
 
+class Tower(Venue):
+
+    """The representation of a tower as read from the Dove CSV file."""
+
+    def __init__(self, dove_collection):
+        """Set up a Tower object.
+        It is given a back-reference to the collection of which it is part."""
+        super().__init__(dove_collection)
+        self._neighbours_cache = None
+        self.rating = 0.0      # can be loaded from --extra
+        self.venue_type = "Tower"
+
+    def normalise(self):
+        """Complete the setup of a Tower object."""
+        super().normalise()
+        if isinstance(self.pounds, float):
+            self.kilograms = self.pounds / 2.2046226218488
+            self.weight = "%d-%d-%d" % (self.pounds // 112, (self.pounds // 28) % 4, self.pounds % 28)
+        else:
+            self.kilograms = ""
+            self.weight = ""
+        if not isinstance(self.bells, int):
+            self.bells = 0
+        return self
+
     def __str__(self):
         return "<%d-bell tower %s>" % (self.bells, self.place)
 
@@ -166,11 +191,13 @@ class Tower:
 
     def names(self):
         """Return various names by which a tower may be known."""
+        self.name_with_dedication = "%s, %s" % (self.place, self.dedication)
+        self.name_with_county = "%s (%s)" % (self.place, self.county)
         return set([self.placecl or self.place,
                     self.place,
                     self.alternative_name or self.place,
-                    "%s, %s" % (self.place, self.dedication),
-                    "%s (%s)" % (self.place, self.county),
+                    self.name_with_dedication,
+                    self.name_with_county,
                     ])
 
     def neighbours(self, n=None):
@@ -304,6 +331,10 @@ class TowerCollection:
         """Return a collection of the towers in this collection with the given affiliation."""
         return self.filter_towers(lambda tower: affiliation in tower.affiliations)
 
+    def rated(self, rated_at_least):
+        """Return a collection of towers with at least the given rating."""
+        return self.filter_towers(lambda tower: tower.rating >= rated_at_least)
+
     def select(self, selectors):
         """Return a selected collection of towers.
         Selectors should be an iterable of tower names or IDs."""
@@ -349,8 +380,22 @@ class TowerCollection:
         download_dove(force_fetch)
         with open(DOVE_FILE) as dovestream:
             for tower in csv.DictReader(dovestream):
-                self.add_tower(self.my_type_of_tower(self).from_dove(tower))
+                self.add_tower(self.my_type_of_tower(self).add_data_from_row(tower))
         return self
+
+    def add_extra_data(self, extra_files):
+        """Load extra data from files."""
+        for extra_file in extra_files:
+            with open(extra_file) as data:
+                for row in csv.DictReader(data):
+                    name = row['Name']
+                    if name in self.by_name:
+                        self[name][0].add_data_from_row(row)
+                    else:
+                        # This is meant for adding things that aren't in
+                        # Dove, such as hotels and pubs --- typically for
+                        # the starts and ends of tours
+                        self.by_name[name].append(Venue(self).add_data_from_row(row))
 
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
@@ -402,6 +447,7 @@ def filter_towers_by_command_line_args(
         select,
         near,
         within,
+        rating,
 ):
     if near or within:
         towers = towers[near][0].within(within)
@@ -419,6 +465,8 @@ def filter_towers_by_command_line_args(
         towers = towers.affiliated_to(affiliation)
     if select:
         towers = towers.select(select.split(","))
+    if rating:
+        towers = towers.rated(rating)
     return towers
 
 def add_tower_args(parser):
@@ -468,6 +516,12 @@ def add_tower_args(parser):
         "--within",
         type=float,
         help="""Include only towers within this number of miles from the tower given as --near.""")
+    parser.add_argument(
+        "--rating",
+        type=float,
+        default=0.0,
+        help="""Include only towers with at least this rating.
+        The ratings are not provided by Dove; they must be loaded separately using the --extra option.""")
     return parser
 
 def get_args():
@@ -480,16 +534,38 @@ def get_args():
     )
     add_tower_args(parser)
     parser.add_argument(
+        "--extra",
+        type=str,
+        action='append',
+        help="""The name of a CSV file containing supplementary data.
+
+        The data should have a column called 'Name', which is used to identify the tower
+        that row is about.
+
+        If it has ratings, they should be in a column called 'Ratings'.
+
+        This may be given multiple times, as you may need different
+        collections of columns for different purposes.  For example,
+        you may have a file specifying the mealtime pubs, which will
+        need to give longitude and latitude of the pubs, and a
+        separate one for tower ratings, in which if you provided
+        blanks for longitude and latitude because of those columns
+        being present to define pub locations, you would overwrite the
+        longitude and latitude data coming from Dove.""")
+    parser.add_argument(
         "--html",
         type=str,
-        help="""Write an HTML page containing a table of towers, to this file.""")
+        help="""Write an HTML page containing a table of towers, to this file.
+        The columns are specified with the --columns option.""")
     parser.add_argument(
         "--title",
-        type=str, default="Tower list")
+        type=str, default="Tower list",
+        help="""The title to put in the HTML output.""")
     parser.add_argument(
         "--csv",
         type=str,
-        help="""Write a CSV table of towers, to this file.""")
+        help="""Write a CSV table of towers, to this file.
+        The columns are specified with the --columns option.""")
     parser.add_argument(
         "--columns",
         type=str,
@@ -529,6 +605,8 @@ def main(
         select,
         near,
         within,
+        rating,
+        extra,
         csv,
         html,
         columns,
@@ -540,8 +618,11 @@ def main(
         raise ValueError("If either of --near or --within is given, both must be given.")
     if (csv or html) and not columns:
         raise ValueError("If either --csv or --html is given, --columns must be given.")
+    towers = TowerCollection().read_dove()
+    if extra:
+        towers.add_extra_data(extra)
     towers = filter_towers_by_command_line_args(
-        towers=TowerCollection().read_dove(),
+        towers=towers,
         min_weight=min_weight, max_weight=max_weight,
         min_bells=min_bells, max_bells=max_bells,
         ground_floor=ground_floor,
@@ -551,6 +632,7 @@ def main(
         select=select,
         near=near,
         within=within,
+        rating=rating,
     )
     if csv:
         towers.dump_csv(csv, columns.split(","))
