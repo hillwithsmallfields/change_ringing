@@ -15,6 +15,7 @@ class RoutingTower(towers.Tower):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.index = None
+        # how to get here from various places, keyed by id
         self._routes_from = dict()
         self.session = LimiterSession(per_second=1)
 
@@ -178,8 +179,14 @@ def main(
         no_cache,
         verbose,
 ):
+    all_towers = RoutingTowerCollection().read_dove()
+    cache_file = os.getenv("OSRM_CACHE", os.path.expanduser("~/.osrm_cache.json"))
+    if (not no_cache) and os.path.isfile(cache_file):
+        if verbose:
+            print("Loading cached routes from", cache_file)
+        all_towers.load_routes(cache_file)
     tower_list = towers.filter_towers_by_command_line_args(
-        towers=RoutingTowerCollection().read_dove(),
+        towers = all_towers,
         min_weight=min_weight, max_weight=max_weight,
         min_bells=min_bells, max_bells=max_bells,
         ground_floor=ground_floor,
@@ -192,11 +199,6 @@ def main(
         rating=rating,
         matching=matching,
     )
-    cache_file = os.getenv("OSRM_CACHE", os.path.expanduser("~/.osrm_cache.json"))
-    if (not no_cache) and os.path.isfile(cache_file):
-        if verbose:
-            print("Loading cached routes from", cache_file)
-        tower_list.load_routes(cache_file)
     if order:
         order, total_distance = tower_list.touring_order(mode=mode)
         print(order, total_distance)
