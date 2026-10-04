@@ -282,10 +282,12 @@ class TowerCollection:
         """Dump this collection to a CSV file.
         Only the specified attributes are written.
         Unknown columns are written as blanks."""
+        sorting_field = fields[1 if fields[0] == 'number' else 0]
         with open(filename, 'w') as outstream:
             writer = csv.DictWriter(outstream, fields)
             writer.writeheader()
-            for row in self.to_list(fields):
+            for i, row in enumerate(sorted(self.to_list(fields), key=lambda r: r[sorting_field])):
+                row['number'] = i # we could take a copy to put the number into, but I think this is harmless
                 writer.writerow(row)
 
     def filter_towers(self, predicate):
