@@ -144,9 +144,10 @@ class Venue:
     def add_data_from_row(self, dove_row):
         """Fill in a Tower object from a row of the Dove CSV file."""
         for key, value in dove_row.items():
-            setattr(self,
-                    COLUMN_RENAMES.get(key, key).lower(),
-                    convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
+            if key:             # skip unlabelled (e.g. blank) columns
+                setattr(self,
+                        COLUMN_RENAMES.get(key, key).lower(),
+                        convert_if_possible(value, COLUMN_CONVERTERS.get(key, lambda a: a)))
         return self.normalise()
 
     def to_dict(self, fields=None):
@@ -335,6 +336,11 @@ class TowerCollection:
         """Return a collection of towers with at least the given rating."""
         return self.filter_towers(lambda tower: tower.rating >= rated_at_least)
 
+    def matching(self, matcher):
+        """Return a collection of towers where a specified field has a specified value."""
+        key, value = matcher.split("=")
+        return self.filter_towers(lambda tower: getattr(tower, key) == value)
+
     def select(self, selectors):
         """Return a selected collection of towers.
         Selectors should be an iterable of tower names or IDs."""
@@ -448,6 +454,7 @@ def filter_towers_by_command_line_args(
         near,
         within,
         rating,
+        matching,
 ):
     if near or within:
         towers = towers[near][0].within(within)
@@ -467,6 +474,9 @@ def filter_towers_by_command_line_args(
         towers = towers.select(select.split(","))
     if rating:
         towers = towers.rated(rating)
+    if matching:
+        for matcher in matching:
+            towers = towers.matching(matcher)
     return towers
 
 def add_tower_args(parser):
@@ -522,6 +532,16 @@ def add_tower_args(parser):
         default=0.0,
         help="""Include only towers with at least this rating.
         The ratings are not provided by Dove; they must be loaded separately using the --extra option.""")
+    parser.add_argument(
+        "--matching",
+        type=str,
+        action='append',
+        help="""Include only towers where a given column matches a given value.
+        Use the syntax "column=value".  May be given multiple times.
+
+        Intended for use with data from a --extra file; for example,
+        you could use this to mark which day of a multi-day tour each
+        tower is to be included in.""")
     return parser
 
 def get_args():
@@ -606,6 +626,7 @@ def main(
         near,
         within,
         rating,
+        matching,
         extra,
         csv,
         html,
@@ -633,6 +654,7 @@ def main(
         near=near,
         within=within,
         rating=rating,
+        matching=matching,
     )
     if csv:
         towers.dump_csv(csv, columns.split(","))
