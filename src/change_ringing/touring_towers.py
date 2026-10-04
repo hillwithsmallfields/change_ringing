@@ -169,6 +169,8 @@ def main(
         select,
         near,
         within,
+        rating,
+        matching,
         order,
         route,
         mode,
@@ -187,6 +189,8 @@ def main(
         select=select,
         near=near,
         within=within,
+        rating=rating,
+        matching=matching,
     )
     cache_file = os.getenv("OSRM_CACHE", os.path.expanduser("~/.osrm_cache.json"))
     if (not no_cache) and os.path.isfile(cache_file):
