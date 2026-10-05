@@ -210,7 +210,8 @@ class Tower(Venue):
         return self._neighbours_cache[1:(n+1) or 1000000]
 
     def my_type_of_collection(self):
-        """Make a new collection of the same type as the one containing this tower."""
+        """Make a new collection of the same type as the one containing this tower.
+        This supports subclassing of the collection."""
         return type(self.collection)(projection=self.collection.projection,
                                      tower_type=type(self))
 
@@ -283,11 +284,13 @@ class TowerCollection:
         Only the specified attributes are written.
         Unknown columns are written as blanks."""
         sorting_field = fields[1 if fields[0] == 'number' else 0]
+        numbered = 'number' in fields
         with open(filename, 'w') as outstream:
             writer = csv.DictWriter(outstream, fields)
             writer.writeheader()
             for i, row in enumerate(sorted(self.to_list(fields), key=lambda r: r[sorting_field])):
-                row['number'] = i # we could take a copy to put the number into, but I think this is harmless
+                if numbered:
+                    row['number'] = i # we could take a copy to put the number into, but I think this is harmless
                 writer.writerow(row)
 
     def filter_towers(self, predicate):
@@ -637,7 +640,7 @@ def main(
         style,
         text,
 ):
-    if not (near and within):
+    if (near or within) and not (near and within):
         raise ValueError("If either of --near or --within is given, both must be given.")
     if (csv or html) and not columns:
         raise ValueError("If either --csv or --html is given, --columns must be given.")
