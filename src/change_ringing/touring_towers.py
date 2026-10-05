@@ -7,6 +7,7 @@ import os
 from requests_ratelimiter import LimiterSession
 import numpy as np
 from python_tsp.exact import solve_tsp_dynamic_programming
+from python_tsp.heuristics import solve_tsp_simulated_annealing
 
 import towers
 
@@ -17,7 +18,7 @@ class RoutingTower(towers.Tower):
         self.index = None
         # how to get here from various places, keyed by id
         self._routes_from = dict()
-        self.session = LimiterSession(per_second=1)
+        self.session = LimiterSession(per_minute=12)
 
     def route_from(self, other, mode='driving', verbose=False):
         """Return the route from another tower, as computed by OSRM."""
@@ -56,7 +57,7 @@ class RoutingTowerCollection(towers.TowerCollection):
             tower.index = i
         return len(self.by_id)
 
-    def touring_order(self):
+    def touring_order(self, heuristic):
         """Return the best order in which to visit the towers in this collection."""
         n = self.index_towers()
         if not self._touring_order:
@@ -65,13 +66,15 @@ class RoutingTowerCollection(towers.TowerCollection):
                 for j, to_tower in enumerate(self.tower_list):
                     if i != j:
                         self.distance_matrix[i, j] = from_tower.crow(to_tower)
-            self._touring_order, self.total_distance = solve_tsp_dynamic_programming(self.distance_matrix)
+            self._touring_order, self.total_distance = (solve_tsp_simulated_annealing
+                                                        if heuristic
+                                                        else solve_tsp_dynamic_programming)(self.distance_matrix)
         return [self.tower_list[index] for index in self._touring_order], self.total_distance
 
-    def touring_route(self, mode='driving', verbose=False):
+    def touring_route(self, mode='driving', heuristic=False, verbose=False):
         """Return a list of the routes between towers, using the Open
         Source Routing Machine web service at https://project-osrm.org/."""
-        tour, _ = self.touring_order()
+        tour, _ = self.touring_order(heuristic)
         if not self.route:
             self.route = ([(None, tour[0].to_dict())]
                           + [(b.route_from(a, mode=mode, verbose=verbose),
@@ -79,8 +82,8 @@ class RoutingTowerCollection(towers.TowerCollection):
                              for a, b in zip(tour[:-1], tour[1:])])
         return self.route
 
-    def geojson(self, mode='driving', verbose=False):
-        raw = self.touring_route(mode=mode, verbose=verbose)
+    def geojson(self, mode='driving', heuristic=False, verbose=False):
+        raw = self.touring_route(mode=mode, heuristic=heuristic, verbose=verbose)
         journeys, towers = zip(*raw)
         journeys = [{'description': j['description'],
                      'geometry': j['osrm']['routes'][0]['geometry']}
@@ -157,6 +160,7 @@ def get_args():
     parser.add_argument("--mode", type=str, default="driving")
     parser.add_argument("--geojson", type=str)
     parser.add_argument("--no-cache", action='store_true')
+    parser.add_argument("--heuristic", action='store_true')
     parser.add_argument("--verbose", "-v", action='store_true')
     return vars(parser.parse_args())
 
@@ -175,6 +179,7 @@ def main(
         mode,
         geojson,
         no_cache,
+        heuristic,
         verbose,
 ):
     all_towers = RoutingTowerCollection().read_dove()
@@ -201,12 +206,14 @@ def main(
     if route:
         with open(route, 'w') as json_stream:
             json.dump(tower_list.touring_route(mode=mode,
+                                               heuristic=heuristic,
                                                verbose=verbose),
                       json_stream,
                       indent=4)
     if geojson:
         with open(geojson, 'w') as json_stream:
             json.dump(tower_list.geojson(mode=mode,
+                                         heuristic=heuristic,
                                          verbose=verbose),
                       json_stream,
                       indent=4)
