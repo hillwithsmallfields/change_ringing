@@ -7,8 +7,6 @@ BIN=$MY_PROJECTS/change_ringing/src/change_ringing
 
 # Produce a web page with a table with tower links and texts to paste into emails or contact forms:
 
-echo 1
-
 $BIN/towers.py --near "Combe Florey" \
                --within 15 \
                --columns number,distance,name_with_dedication,bells,weight,web_page,text \
@@ -18,8 +16,6 @@ $BIN/towers.py --near "Combe Florey" \
                
 # Produce a spreadsheet file for someone to fill in tower ratings:
 
-echo 2
-
 $BIN/towers.py --near "Combe Florey" \
                --within 20 \
                --columns number,distance,name_with_dedication,bells,weight \
@@ -28,16 +24,12 @@ $BIN/towers.py --near "Combe Florey" \
 
 # List all the towers in a diocese
 
-echo 3
-
-$BIN/towers.py --matching diocese=Ely \
+$BIN/towers.py --matching diocese==Ely \
                --csv /tmp/ely-towers.csv \
                --columns name_with_dedication,bells,weight,web_page
 
-# Produce a route file for all the towers in a given disc of land:
+# List all the towers in a counties ending in "shire"
 
-echo 4
-
-$BIN/touring_towers.py --near "Combe Florey" \
-                       --within 4 --geojson /tmp/combe-florey-tour-route.geojson \
-                       --verbose
+$BIN/towers.py --matching "county~=.+shire" \
+               --csv /tmp/shire-towers.csv \
+               --columns name_with_dedication,county,bells,weight
