@@ -7,6 +7,7 @@ import csv
 import datetime
 import math
 import os
+import re
 import requests
 
 import pyproj
@@ -334,9 +335,19 @@ class TowerCollection:
         return self.filter_towers(lambda tower: tower.rating >= rated_at_least)
 
     def matching(self, matcher):
-        """Return a collection of towers where a specified field has a specified value."""
-        key, value = matcher.split("=")
-        return self.filter_towers(lambda tower: getattr(tower, key) == value)
+        """Return a collection of towers where a specified field either:
+        - has a specified value, given as fieldname=value
+        - matches a specified regexp, given as fieldname~pattern
+        """
+        if "==" in matcher:
+            key, value = matcher.split("==")
+            return self.filter_towers(lambda tower: getattr(tower, key) == value)
+        elif "~=" in matcher:
+            key, regexp = matcher.split("~=")
+            pattern = re.compile(regexp)
+            return self.filter_towers(lambda tower: re.match(pattern, getattr(tower, key)))
+        else:
+            raise ValueError("matching must have either '==' or '~=' in it.")
 
     def select(self, selectors):
         """Return a selected collection of towers.
