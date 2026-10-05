@@ -325,14 +325,6 @@ class TowerCollection:
         """Return a collection of the ground-floor towers in this collection."""
         return self.filter_towers(lambda tower: tower.ground_floor)
 
-    def in_county(self, county):
-        """Return a collection of the towers in this collection in the given county."""
-        return self.filter_towers(lambda tower: tower.county == county)
-
-    def in_diocese(self, diocese):
-        """Return a collection of the towers in this collection in the given diocese."""
-        return self.filter_towers(lambda tower: tower.diocese == diocese)
-
     def affiliated_to(self, affiliation):
         """Return a collection of the towers in this collection with the given affiliation."""
         return self.filter_towers(lambda tower: affiliation in tower.affiliations)
@@ -445,15 +437,12 @@ def examples():
     selected.html_page("/tmp/selected.html",
                        "Selected towers",
                        ['place', 'dedication', 'weight', 'web_page', 'requested', 'replied'])
-    dove.in_county("Cambridgeshire").dump_csv("/tmp/cambs.csv", ['place', 'dedication', 'weight', 'requested', 'replied'])
 
 def filter_towers_by_command_line_args(
         towers,
         min_weight, max_weight,
         min_bells, max_bells,
         ground_floor,
-        county,
-        diocese,
         affiliation,
         select,
         near,
@@ -469,10 +458,6 @@ def filter_towers_by_command_line_args(
         towers = towers.bells_range(min_bells, max_bells)
     if ground_floor:
         towers = towers.ground_floor()
-    if county:
-        towers = towers.in_county(county)
-    if diocese:
-        towers = towers.in_diocese(diocese)
     if affiliation:
         towers = towers.affiliated_to(affiliation)
     if select:
@@ -506,14 +491,6 @@ def add_tower_args(parser):
         "--ground-floor",
         action='store_true',
         help="""Include only towers with ground-floor ringing rooms.""")
-    parser.add_argument(
-        "--county",
-        type=str,
-        help="""Include only towers from this county.""")
-    parser.add_argument(
-        "--diocese",
-        type=str,
-        help="""Include only towers from this diocese.""")
     parser.add_argument(
         "--affiliation",
         type=str,
@@ -624,8 +601,6 @@ def main(
         min_weight, max_weight,
         min_bells, max_bells,
         ground_floor,
-        county,
-        diocese,
         affiliation,
         select,
         near,
@@ -652,8 +627,6 @@ def main(
         min_weight=min_weight, max_weight=max_weight,
         min_bells=min_bells, max_bells=max_bells,
         ground_floor=ground_floor,
-        county=county,
-        diocese=diocese,
         affiliation=affiliation,
         select=select,
         near=near,
