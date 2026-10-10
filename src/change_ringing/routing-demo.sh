@@ -14,7 +14,7 @@ $BIN/touring_towers.py --near "Combe Florey" \
 
 # $BIN/towers.py --matching county==Rutland \
 #                --csv /tmp/rutland-towers.csv \
-#                --columns number,name_with_dedication,bells,weight,web_page
+#                --columns number,name_with_dedication,bells,weight,web_page \
 
 # $BIN/touring_towers.py --matching county==Rutland \
 #                        --heuristic \
