@@ -16,6 +16,7 @@ DOVE_FILE = os.path.expanduser("~/Downloads/dove.csv")
 DOVE_URL = "https://dove.cccbr.org.uk/towers.csv"
 
 METRES_PER_MILE = 1609.344
+SECTORS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW']
 
 # Make column names more suitable for use as object attribute names;
 # whether or not found in this table, they are downcased for use.
@@ -224,7 +225,9 @@ class Tower(Venue):
         for tower in self.collection.by_id.values():
             if (my_distance := math.dist(self.xy, tower.xy)) <= distance:
                 copied = copy.copy(tower)
-                copied.distance = my_distance / METRES_PER_MILE
+                copied.distance = round(my_distance / METRES_PER_MILE, 1) if miles else int(my_distance)
+                copied.bearing = (int(math.degrees(math.atan2(tower.y-self.y, tower.x-self.x))) + 360) % 360
+                copied.sector = SECTORS[int((copied.bearing + 22.5) / 45) % 8]
                 result.add_tower(copied)
         return result
 
@@ -460,7 +463,10 @@ def filter_towers_by_command_line_args(
         within,
         rating,
         matching,
+        include_unringable=False,
 ):
+    if not include_unringable:
+        towers = towers.ringable()
     if near or within:
         towers = towers[near][0].within(within)
     if min_weight or max_weight:
@@ -535,6 +541,10 @@ def add_tower_args(parser):
         Intended for use with data from a --extra file; for example,
         you could use this to mark which day of a multi-day tour each
         tower is to be included in.""")
+    parser.add_argument(
+        "--include-unringable",
+        action='store_true',
+        help="""Include unringable towers; by default, these are filtered out.""")
     return parser
 
 def get_args():
@@ -618,6 +628,7 @@ def main(
         within,
         rating,
         matching,
+        include_unringable,
         extra,
         csv,
         html,
@@ -644,6 +655,7 @@ def main(
         within=within,
         rating=rating,
         matching=matching,
+        include_unringable=include_unringable,
     )
     if csv:
         towers.dump_csv(csv, columns.split(","))
