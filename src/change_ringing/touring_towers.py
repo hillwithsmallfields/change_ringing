@@ -60,12 +60,20 @@ class RoutingTowerCollection(towers.TowerCollection):
         or adds them if they were not in the list.
         Fills in self.tower_list.
         Returns the number of towers."""
+        print("indexing towers with first", first, "of type", type(first), "and last", last, "of type", type(last))
         self.tower_list = list(self.by_id.values())
+
+        for i, t in enumerate(self.tower_list):
+            print("comparison list", i, t, type(t), id(t), first == t, first, type(first), id(first))
+
         if first not in self.tower_list:
+            print("first not in tower list; prepending")
             self.tower_list = [first] + self.tower_list
             # TODO: also add to self.by_id
         elif self.tower_list[0] != first:
+            print("first is not at start")
             for i, tower in enumerate(self.tower_list):
+                print("checking", i, tower, type(tower))
                 if tower == first:
                     self.tower_list = [tower] + self.tower_list[:i] + self.tower_list[i+1:]
                     break
@@ -78,8 +86,9 @@ class RoutingTowerCollection(towers.TowerCollection):
                     self.tower_list = self.tower_list[:i] + self.tower_list[i+1:] + [tower]
                     break
         for i, tower in enumerate(self.tower_list):
+            print("indexing", tower, "as", i)
             tower.index = i
-        return len(self.by_id)
+        return len(self.tower_list)
 
     def touring_order(self, first, last, heuristic):
         """Return the best order in which to visit the towers in this collection."""
@@ -90,9 +99,12 @@ class RoutingTowerCollection(towers.TowerCollection):
                 for j, to_tower in enumerate(self.tower_list):
                     if i != j:
                         self.distance_matrix[i, j] = from_tower.crow(to_tower)
+            self.distance_matrix[:, 0] = 0
+            # self.distance_matrix[-1, :] = 0
             self._touring_order, self.total_distance = (solve_tsp_simulated_annealing
                                                         if heuristic
                                                         else solve_tsp_dynamic_programming)(self.distance_matrix)
+        print("touring order is", self._touring_order)
         return [self.tower_list[index] for index in self._touring_order], self.total_distance
 
     def touring_route(self, first, last, mode='driving', heuristic=False, verbose=False):
@@ -233,8 +245,10 @@ def main(
             matching=matching,
             include_unringable=include_unringable,
         )
-        first = tower_list[first][0]
-        last = tower_list[last][0]
+        if first:
+            first = tower_list[first][0]
+        if last:
+            last = tower_list[last][0]
         if order:
             order, total_distance = tower_list.touring_order(first, last, mode=mode)
             print(order, total_distance)

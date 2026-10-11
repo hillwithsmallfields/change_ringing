@@ -1,6 +1,10 @@
 # change-ringing
 Assorted code related to change-ringing.
 
+## towers.py and touring_towers.py
+
+Documented separately.
+
 ## dove_josm
 
 ## strip_csv.py

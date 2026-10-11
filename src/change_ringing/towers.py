@@ -124,6 +124,7 @@ class Venue:
     def __init__(self, dove_collection):
         """Set up a Venue object.
         It is given a back-reference to the collection of which it is part."""
+        self.tower_id = None
         self.collection = dove_collection
         self.venue_type = "Venue"
         # set up enough that .normalise() will work even if coordinates aren't provided
@@ -142,10 +143,14 @@ class Venue:
                             else 'Unnamed')))
 
     def __str__(self):
-        return f"<Venue {self.name()}>"
+        return f"<Venue {self.__name()} {self.tower_id}>"
 
     def __repr__(self):
-        return f"<Venue {self.Name if hasattr(self, 'Name') else self.name if hasattr(self, 'name') else self.name_with_dedication if hasattr(self, 'name_with_dedication') else 'Unnamed'}>"
+        return f"<Venue {self.Name if hasattr(self, 'Name') else self._name if hasattr(self, '__name') else self.name_with_dedication if hasattr(self, 'name_with_dedication') else 'Unnamed'} {self.tower_id}>"
+
+    def __eq__(self, other):
+        print("comparing", self, self.tower_id, "against", other, other.tower_id)
+        return (self.tower_id is not None) and (self.tower_id == other.tower_id)
 
     def normalise(self):
         """Complete the setup of a Venue object."""

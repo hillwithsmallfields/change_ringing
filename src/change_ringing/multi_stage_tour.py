@@ -32,6 +32,7 @@ class TourPlanner:
         # print("end venue", end_venue)
         places = self.towers.select([start] + towers + [end])
         print("places", places)
+        print(places.touring_order(start_venue, end_venue, heuristic=False))
 
 def main(
         tour_file
