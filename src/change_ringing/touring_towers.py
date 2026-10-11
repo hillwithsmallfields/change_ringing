@@ -12,7 +12,7 @@ from python_tsp.heuristics import solve_tsp_simulated_annealing
 import towers
 from cache_routes import RouteCache
 
-class RoutingTower(towers.Tower):
+class RoutingVenue(towers.Venue):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -37,8 +37,13 @@ class RoutingTower(towers.Tower):
                 print("Using cached route from", other.place, "to", self.place)
         return self._routes_from[other_id]
 
+class RoutingTower(RoutingVenue, towers.Tower):
+
+    pass
+
 class RoutingTowerCollection(towers.TowerCollection):
 
+    venue_type = RoutingVenue
     tower_type = RoutingTower
 
     def __init__(self, *args, **kwargs):
@@ -49,18 +54,36 @@ class RoutingTowerCollection(towers.TowerCollection):
         self.total_distance = None
         self.route = None
 
-    def index_towers(self):
+    def index_towers(self, first, last):
         """Number the towers, in preparation for making numpy arrays with them in.
+        Moves the specified first and last entries to the appropriate places,
+        or adds them if they were not in the list.
         Fills in self.tower_list.
         Returns the number of towers."""
         self.tower_list = list(self.by_id.values())
+        if first not in self.tower_list:
+            self.tower_list = [first] + self.tower_list
+            # TODO: also add to self.by_id
+        elif self.tower_list[0] != first:
+            for i, tower in enumerate(self.tower_list):
+                if tower == first:
+                    self.tower_list = [tower] + self.tower_list[:i] + self.tower_list[i+1:]
+                    break
+        if last not in self.tower_list:
+            self.tower_list.append(last)
+            # TODO: also add to self.by_id
+        elif self.tower_list[-1] != last:
+            for i, tower in enumerate(self.tower_list):
+                if tower == last:
+                    self.tower_list = self.tower_list[:i] + self.tower_list[i+1:] + [tower]
+                    break
         for i, tower in enumerate(self.tower_list):
             tower.index = i
         return len(self.by_id)
 
-    def touring_order(self, heuristic):
+    def touring_order(self, first, last, heuristic):
         """Return the best order in which to visit the towers in this collection."""
-        n = self.index_towers()
+        n = self.index_towers(first, last)
         if not self._touring_order:
             self.distance_matrix = np.zeros([n, n], dtype=float)
             for i, from_tower in enumerate(self.tower_list):
@@ -72,10 +95,10 @@ class RoutingTowerCollection(towers.TowerCollection):
                                                         else solve_tsp_dynamic_programming)(self.distance_matrix)
         return [self.tower_list[index] for index in self._touring_order], self.total_distance
 
-    def touring_route(self, mode='driving', heuristic=False, verbose=False):
+    def touring_route(self, first, last, mode='driving', heuristic=False, verbose=False):
         """Return a list of the routes between towers, using the Open
         Source Routing Machine web service at https://project-osrm.org/."""
-        tour, _ = self.touring_order(heuristic)
+        tour, _ = self.touring_order(first, last, heuristic)
         if not self.route:
             self.route = ([(None, tour[0].to_dict())]
                           + [(b.route_from(a, mode=mode, verbose=verbose),
@@ -83,8 +106,8 @@ class RoutingTowerCollection(towers.TowerCollection):
                              for a, b in zip(tour[:-1], tour[1:])])
         return self.route
 
-    def geojson(self, mode='driving', heuristic=False, verbose=False):
-        raw = self.touring_route(mode=mode, heuristic=heuristic, verbose=verbose)
+    def geojson(self, first, last, mode='driving', heuristic=False, verbose=False):
+        raw = self.touring_route(first, last, mode=mode, heuristic=heuristic, verbose=verbose)
         journeys, towers = zip(*raw)
         journeys = [{'description': j['description'],
                      'geometry': j['osrm']['routes'][0]['geometry']}
@@ -126,7 +149,11 @@ class RoutingTowerCollection(towers.TowerCollection):
         Intended for persisting the caches."""
         for tower_id, cached_data in incoming.items():
             # print("adding cached routes for", self.by_id[int(tower_id)])
-            self.by_id[int(tower_id)]._routes_from.update(cached_data)
+            numeric_id = int(tower_id)
+            if numeric_id in self.by_id:
+                self.by_id[numeric_id]._routes_from.update(cached_data)
+            # else:
+            #     self.by_id[numeric_id]._routes_from = cached_data
 
     def save_routes(self, filename):
         """Save the routes to a JSON file."""
@@ -157,6 +184,10 @@ def main_for_testing():
 def get_args():
     parser = argparse.ArgumentParser()
     towers.add_tower_args(parser)
+    parser.add_argument("--first",
+                        help="""The starting point of the route.""")
+    parser.add_argument("--last",
+                        help="""The end point of the route.""")
     parser.add_argument("--order", action='store_true')
     parser.add_argument("--route", type=str)
     parser.add_argument("--mode", type=str, default="driving")
@@ -177,6 +208,8 @@ def main(
         rating,
         matching,
         include_unringable,
+        first,
+        last,
         order,
         route,
         mode,
@@ -200,12 +233,16 @@ def main(
             matching=matching,
             include_unringable=include_unringable,
         )
+        first = tower_list[first][0]
+        last = tower_list[last][0]
         if order:
-            order, total_distance = tower_list.touring_order(mode=mode)
+            order, total_distance = tower_list.touring_order(first, last, mode=mode)
             print(order, total_distance)
         if route:
             with open(route, 'w') as json_stream:
                 json.dump(tower_list.touring_route(mode=mode,
+                                                   first=first,
+                                                   last=last,
                                                    heuristic=heuristic,
                                                    verbose=verbose),
                           json_stream,
@@ -213,6 +250,8 @@ def main(
         if geojson:
             with open(geojson, 'w') as json_stream:
                 json.dump(tower_list.geojson(mode=mode,
+                                             first=first,
+                                             last=last,
                                              heuristic=heuristic,
                                              verbose=verbose),
                           json_stream,

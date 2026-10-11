@@ -7,6 +7,8 @@ BIN=$MY_PROJECTS/change_ringing/src/change_ringing
 
 $BIN/touring_towers.py --near "Combe Florey" \
                        --within 4 \
+                       --first "Ash Priors" \
+                       --last "Combe Florey" \
                        --geojson /tmp/combe-florey-tour-route.geojson \
                        --verbose
 
@@ -15,16 +17,5 @@ $BIN/touring_towers.py --near "Combe Florey" \
 # $BIN/towers.py --matching county==Rutland \
 #                --csv /tmp/rutland-towers.csv \
 #                --columns number,name_with_dedication,bells,weight,web_page \
-
-# $BIN/touring_towers.py --matching county==Rutland \
-#                        --heuristic \
-#                        --geojson /tmp/rutland-tour-route.geojson \
-#                        --verbose
-
-# $BIN/touring_towers.py --matching county==Somerset \
-#                        --heuristic \
-#                        --geojson /tmp/somerset-tour-route.geojson \
-#                        --verbose
-
 
 
