@@ -10,6 +10,7 @@ from python_tsp.exact import solve_tsp_dynamic_programming
 from python_tsp.heuristics import solve_tsp_simulated_annealing
 
 import towers
+from cache_routes import RouteCache
 
 class RoutingTower(towers.Tower):
 
@@ -124,6 +125,7 @@ class RoutingTowerCollection(towers.TowerCollection):
         """Load a JSON-serializable dict for all the known OSRM routes in this collection.
         Intended for persisting the caches."""
         for tower_id, cached_data in incoming.items():
+            # print("adding cached routes for", self.by_id[int(tower_id)])
             self.by_id[int(tower_id)]._routes_from.update(cached_data)
 
     def save_routes(self, filename):
@@ -174,6 +176,7 @@ def main(
         within,
         rating,
         matching,
+        include_unringable,
         order,
         route,
         mode,
@@ -183,44 +186,37 @@ def main(
         verbose,
 ):
     all_towers = RoutingTowerCollection().read_dove()
-    cache_file = os.getenv("OSRM_CACHE", os.path.expanduser("~/.osrm_cache.json"))
-    if (not no_cache) and os.path.isfile(cache_file):
-        if verbose:
-            print("Loading cached routes from", cache_file)
-        all_towers.load_routes(cache_file)
-    tower_list = towers.filter_towers_by_command_line_args(
-        towers = all_towers,
-        min_weight=min_weight, max_weight=max_weight,
-        min_bells=min_bells, max_bells=max_bells,
-        ground_floor=ground_floor,
-        affiliation=affiliation,
-        select=select,
-        near=near,
-        within=within,
-        rating=rating,
-        matching=matching,
-    )
-    if order:
-        order, total_distance = tower_list.touring_order(mode=mode)
-        print(order, total_distance)
-    if route:
-        with open(route, 'w') as json_stream:
-            json.dump(tower_list.touring_route(mode=mode,
-                                               heuristic=heuristic,
-                                               verbose=verbose),
-                      json_stream,
-                      indent=4)
-    if geojson:
-        with open(geojson, 'w') as json_stream:
-            json.dump(tower_list.geojson(mode=mode,
-                                         heuristic=heuristic,
-                                         verbose=verbose),
-                      json_stream,
-                      indent=4)
-    if not no_cache:
-        if verbose:
-            print("Saving cached routes to", cache_file)
-        tower_list.save_routes(cache_file)
+    with RouteCache(all_towers, no_cache=no_cache):
+        tower_list = towers.filter_towers_by_command_line_args(
+            towers=all_towers,
+            min_weight=min_weight, max_weight=max_weight,
+            min_bells=min_bells, max_bells=max_bells,
+            ground_floor=ground_floor,
+            affiliation=affiliation,
+            select=select,
+            near=near,
+            within=within,
+            rating=rating,
+            matching=matching,
+            include_unringable=include_unringable,
+        )
+        if order:
+            order, total_distance = tower_list.touring_order(mode=mode)
+            print(order, total_distance)
+        if route:
+            with open(route, 'w') as json_stream:
+                json.dump(tower_list.touring_route(mode=mode,
+                                                   heuristic=heuristic,
+                                                   verbose=verbose),
+                          json_stream,
+                          indent=4)
+        if geojson:
+            with open(geojson, 'w') as json_stream:
+                json.dump(tower_list.geojson(mode=mode,
+                                             heuristic=heuristic,
+                                             verbose=verbose),
+                          json_stream,
+                          indent=4)
 
 if __name__ == "__main__":
     main(**get_args())
