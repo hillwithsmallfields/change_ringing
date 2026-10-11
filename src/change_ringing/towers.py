@@ -132,6 +132,21 @@ class Venue:
         self.satnav_longitude = 0.0
         self.satnav_latitude = 0.0
 
+    def __name(self):
+        return (self.Name
+                if hasattr(self, 'Name')
+                else (self.name
+                      if hasattr(self, 'name')
+                      else (self.name_with_dedication
+                            if hasattr(self, 'name_with_dedication')
+                            else 'Unnamed')))
+
+    def __str__(self):
+        return f"<Venue {self.name()}>"
+
+    def __repr__(self):
+        return f"<Venue {self.Name if hasattr(self, 'Name') else self.name if hasattr(self, 'name') else self.name_with_dedication if hasattr(self, 'name_with_dedication') else 'Unnamed'}>"
+
     def normalise(self):
         """Complete the setup of a Venue object."""
         self.longlat = (self.longitude, self.latitude)
@@ -160,6 +175,19 @@ class Venue:
                                                 if hasattr(self, k) and not k.startswith("_")
                                                 }.items()
                 if isinstance(field_value, (int, float, str, bool, list, dict))}
+
+    def copy_into(self, collection):
+        new = copy.copy(self)
+        new.collection = collection
+        return new
+
+    def crow(self, other, miles=True):
+        """Return the distance to another tower as the crow flies.
+        The distance is miles by default, metres on request."""
+        return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
+
+    def names(self):
+        return set([self.__name()])
 
 class Tower(Venue):
 
@@ -231,16 +259,6 @@ class Tower(Venue):
                 result.add_tower(copied)
         return result
 
-    def crow(self, other, miles=True):
-        """Return the distance to another tower as the crow flies.
-        The distance is miles by default, metres on request."""
-        return math.dist(self.xy, other.xy) / (1609.344 if miles else 1)
-
-    def copy_into(self, collection):
-        new = copy.copy(self)
-        new.collection = collection
-        return new
-
     def html(self, columns, row_number, text):
         """Return an HTML table row string representing this tower."""
         attributes = self.to_dict()
@@ -261,12 +279,16 @@ class TowerCollection:
 
     def __init__(self,
                  projection="EPSG:3857",
+                 venue_type=Venue,
                  tower_type=Tower,
                  ):
         self.by_name = collections.defaultdict(list)
         self.by_id = dict()
         self.projection = projection
         self.transformer = pyproj.Transformer.from_crs("EPSG:4326", self.projection)
+
+    def __repr__(self):
+        return f"<{type(self).__name__} holding {len(self.by_id)}>"
 
     def add_tower(self, tower):
         if (tower.full_circle and tower.bells > 1):
@@ -362,6 +384,10 @@ class TowerCollection:
         """Return a new tower of the type used in this collection."""
         return self.tower_type(*args, **kwargs)
 
+    def my_type_of_venue(self, *args, **kwargs):
+        """Return a new venue of the type used in this collection."""
+        return self.venue_type(*args, **kwargs)
+
     def html(self, columns, text):
         """Return an HTML table representing this collection."""
         sorting_column = 1 if columns[0] == 'number' else 0
@@ -403,16 +429,20 @@ class TowerCollection:
     def add_extra_data(self, extra_files):
         """Load extra data from files."""
         for extra_file in extra_files:
-            with open(extra_file) as data:
+            with open(os.path.expanduser(os.path.expandvars(extra_file))) as data:
                 for row in csv.DictReader(data):
-                    name = row['Name']
+                    name = row['Name with dedication' if 'Name with dedication' in row else 'Name']
                     if name in self.by_name:
                         self[name][0].add_data_from_row(row)
                     else:
                         # This is meant for adding things that aren't in
                         # Dove, such as hotels and pubs --- typically for
                         # the starts and ends of tours
-                        self.by_name[name].append(Venue(self).add_data_from_row(row))
+                        venue = self.my_type_of_venue(self).add_data_from_row(row)
+                        if not hasattr(venue, 'tower_id'):
+                            setattr(venue, 'tower_id', max(self.by_id.keys()) + 1)
+                        self.by_name[name].append(venue)
+                        self.by_id[venue.tower_id] = venue
 
 def download_dove(force_fetch=False):
     """Fetch the Dove data as a CSV file if it is not present, or if forced."""
